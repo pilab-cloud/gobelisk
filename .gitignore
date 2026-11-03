@@ -1,0 +1,5 @@
+*.log
+callee_*_messages.log
+caller_*_messages.log
+uas_*_messages.log
+.vscode/

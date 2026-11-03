@@ -1,0 +1,174 @@
+syntax = "proto3";
+
+package gobelisk.v1;
+
+option go_package = "github.com/devopshaven/gobelisk/gen/go/gobelisk/v1;gobeliskv1";
+
+service Management {
+  rpc Status(StatusRequest) returns (StatusResponse);
+  rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
+  rpc SetConfig(SetConfigRequest) returns (SetConfigResponse);
+  rpc ReloadConfig(ReloadConfigRequest) returns (ReloadConfigResponse);
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc AddUser(AddUserRequest) returns (AddUserResponse);
+  rpc RemoveUser(RemoveUserRequest) returns (RemoveUserResponse);
+  rpc GetDialPlan(GetDialPlanRequest) returns (GetDialPlanResponse);
+  rpc SetDialPlan(SetDialPlanRequest) returns (SetDialPlanResponse);
+  rpc ListCalls(ListCallsRequest) returns (ListCallsResponse);
+  rpc OriginateCall(OriginateCallRequest) returns (OriginateCallResponse);
+  rpc ListExtensions(ListExtensionsRequest) returns (ListExtensionsResponse);
+  rpc GetExtension(GetExtensionRequest) returns (GetExtensionResponse);
+  rpc CreateExtension(CreateExtensionRequest) returns (CreateExtensionResponse);
+  rpc UpdateExtension(UpdateExtensionRequest) returns (UpdateExtensionResponse);
+  rpc RemoveExtension(RemoveExtensionRequest) returns (RemoveExtensionResponse);
+
+  rpc ListRooms(ListRoomsRequest) returns (ListRoomsResponse);
+  rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse);
+  rpc RemoveRoom(RemoveRoomRequest) returns (RemoveRoomResponse);
+
+  rpc ListMeetings(ListMeetingsRequest) returns (ListMeetingsResponse);
+  rpc CreateMeeting(CreateMeetingRequest) returns (CreateMeetingResponse);
+  rpc RemoveMeeting(RemoveMeetingRequest) returns (RemoveMeetingResponse);
+}
+
+message StatusRequest {}
+message StatusResponse {
+  string host = 1;
+  int32 port = 2;
+}
+
+message GetConfigRequest {}
+message GetConfigResponse {
+  string yaml = 1;
+}
+
+message SetConfigRequest {
+  string yaml = 1;
+}
+message SetConfigResponse {
+  string message = 1;
+}
+
+message ReloadConfigRequest {}
+message ReloadConfigResponse {
+  string message = 1;
+}
+
+message ListUsersRequest {}
+message ListUsersResponse {
+  map<string, string> users = 1;
+}
+
+message AddUserRequest {
+  string user = 1;
+  string password = 2;
+}
+message AddUserResponse {
+  string message = 1;
+}
+
+message RemoveUserRequest {
+  string user = 1;
+}
+message RemoveUserResponse {
+  string message = 1;
+}
+
+message GetDialPlanRequest {}
+message GetDialPlanResponse {
+  string text = 1;
+}
+
+message SetDialPlanRequest {
+  string text = 1;
+}
+message SetDialPlanResponse {
+  string message = 1;
+}
+
+message ListCallsRequest {}
+message ListCallsResponse {
+  repeated string call_ids = 1;
+}
+
+message OriginateCallRequest {
+  string from = 1;
+  string to = 2;
+}
+message OriginateCallResponse {
+  string message = 1;
+}
+
+message ListExtensionsRequest {}
+message ListExtensionsResponse {
+  map<string, string> extensions = 1;
+}
+
+message RemoveExtensionRequest {
+  string extension = 1;
+}
+message RemoveExtensionResponse {
+  string message = 1;
+}
+
+message GetExtensionRequest {
+  string extension = 1;
+}
+message GetExtensionResponse {
+  string contact = 1;
+}
+
+message CreateExtensionRequest {
+  string extension = 1;
+  string contact = 2;
+}
+message CreateExtensionResponse {
+  string message = 1;
+}
+
+message UpdateExtensionRequest {
+  string extension = 1;
+  string contact = 2;
+}
+message UpdateExtensionResponse {
+  string message = 1;
+}
+
+message ListRoomsRequest {}
+message ListRoomsResponse {
+  repeated string rooms = 1;
+}
+
+message CreateRoomRequest {
+  string name = 1;
+}
+message CreateRoomResponse {
+  string message = 1;
+}
+
+message RemoveRoomRequest {
+  string name = 1;
+}
+message RemoveRoomResponse {
+  string message = 1;
+}
+
+message ListMeetingsRequest {}
+message ListMeetingsResponse {
+  map<string, string> meetings = 1;
+}
+
+message CreateMeetingRequest {
+  string name = 1;
+  string extension = 2;
+}
+message CreateMeetingResponse {
+  string message = 1;
+}
+
+message RemoveMeetingRequest {
+  string name = 1;
+}
+message RemoveMeetingResponse {
+  string message = 1;
+}
