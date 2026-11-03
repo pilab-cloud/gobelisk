@@ -30,6 +30,8 @@ const (
 	Management_SetDialPlan_FullMethodName     = "/gobelisk.v1.Management/SetDialPlan"
 	Management_ListCalls_FullMethodName       = "/gobelisk.v1.Management/ListCalls"
 	Management_OriginateCall_FullMethodName   = "/gobelisk.v1.Management/OriginateCall"
+	Management_GeneratePrompt_FullMethodName  = "/gobelisk.v1.Management/GeneratePrompt"
+	Management_TranscribeAudio_FullMethodName = "/gobelisk.v1.Management/TranscribeAudio"
 	Management_ListExtensions_FullMethodName  = "/gobelisk.v1.Management/ListExtensions"
 	Management_GetExtension_FullMethodName    = "/gobelisk.v1.Management/GetExtension"
 	Management_CreateExtension_FullMethodName = "/gobelisk.v1.Management/CreateExtension"
@@ -58,6 +60,8 @@ type ManagementClient interface {
 	SetDialPlan(ctx context.Context, in *SetDialPlanRequest, opts ...grpc.CallOption) (*SetDialPlanResponse, error)
 	ListCalls(ctx context.Context, in *ListCallsRequest, opts ...grpc.CallOption) (*ListCallsResponse, error)
 	OriginateCall(ctx context.Context, in *OriginateCallRequest, opts ...grpc.CallOption) (*OriginateCallResponse, error)
+	GeneratePrompt(ctx context.Context, in *GeneratePromptRequest, opts ...grpc.CallOption) (*GeneratePromptResponse, error)
+	TranscribeAudio(ctx context.Context, in *TranscribeAudioRequest, opts ...grpc.CallOption) (*TranscribeAudioResponse, error)
 	ListExtensions(ctx context.Context, in *ListExtensionsRequest, opts ...grpc.CallOption) (*ListExtensionsResponse, error)
 	GetExtension(ctx context.Context, in *GetExtensionRequest, opts ...grpc.CallOption) (*GetExtensionResponse, error)
 	CreateExtension(ctx context.Context, in *CreateExtensionRequest, opts ...grpc.CallOption) (*CreateExtensionResponse, error)
@@ -189,6 +193,26 @@ func (c *managementClient) OriginateCall(ctx context.Context, in *OriginateCallR
 	return out, nil
 }
 
+func (c *managementClient) GeneratePrompt(ctx context.Context, in *GeneratePromptRequest, opts ...grpc.CallOption) (*GeneratePromptResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GeneratePromptResponse)
+	err := c.cc.Invoke(ctx, Management_GeneratePrompt_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *managementClient) TranscribeAudio(ctx context.Context, in *TranscribeAudioRequest, opts ...grpc.CallOption) (*TranscribeAudioResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TranscribeAudioResponse)
+	err := c.cc.Invoke(ctx, Management_TranscribeAudio_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *managementClient) ListExtensions(ctx context.Context, in *ListExtensionsRequest, opts ...grpc.CallOption) (*ListExtensionsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListExtensionsResponse)
@@ -314,6 +338,8 @@ type ManagementServer interface {
 	SetDialPlan(context.Context, *SetDialPlanRequest) (*SetDialPlanResponse, error)
 	ListCalls(context.Context, *ListCallsRequest) (*ListCallsResponse, error)
 	OriginateCall(context.Context, *OriginateCallRequest) (*OriginateCallResponse, error)
+	GeneratePrompt(context.Context, *GeneratePromptRequest) (*GeneratePromptResponse, error)
+	TranscribeAudio(context.Context, *TranscribeAudioRequest) (*TranscribeAudioResponse, error)
 	ListExtensions(context.Context, *ListExtensionsRequest) (*ListExtensionsResponse, error)
 	GetExtension(context.Context, *GetExtensionRequest) (*GetExtensionResponse, error)
 	CreateExtension(context.Context, *CreateExtensionRequest) (*CreateExtensionResponse, error)
@@ -367,6 +393,12 @@ func (UnimplementedManagementServer) ListCalls(context.Context, *ListCallsReques
 }
 func (UnimplementedManagementServer) OriginateCall(context.Context, *OriginateCallRequest) (*OriginateCallResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method OriginateCall not implemented")
+}
+func (UnimplementedManagementServer) GeneratePrompt(context.Context, *GeneratePromptRequest) (*GeneratePromptResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GeneratePrompt not implemented")
+}
+func (UnimplementedManagementServer) TranscribeAudio(context.Context, *TranscribeAudioRequest) (*TranscribeAudioResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TranscribeAudio not implemented")
 }
 func (UnimplementedManagementServer) ListExtensions(context.Context, *ListExtensionsRequest) (*ListExtensionsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListExtensions not implemented")
@@ -620,6 +652,42 @@ func _Management_OriginateCall_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Management_GeneratePrompt_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GeneratePromptRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ManagementServer).GeneratePrompt(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Management_GeneratePrompt_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ManagementServer).GeneratePrompt(ctx, req.(*GeneratePromptRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Management_TranscribeAudio_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TranscribeAudioRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ManagementServer).TranscribeAudio(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Management_TranscribeAudio_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ManagementServer).TranscribeAudio(ctx, req.(*TranscribeAudioRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Management_ListExtensions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListExtensionsRequest)
 	if err := dec(in); err != nil {
@@ -868,6 +936,14 @@ var Management_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "OriginateCall",
 			Handler:    _Management_OriginateCall_Handler,
+		},
+		{
+			MethodName: "GeneratePrompt",
+			Handler:    _Management_GeneratePrompt_Handler,
+		},
+		{
+			MethodName: "TranscribeAudio",
+			Handler:    _Management_TranscribeAudio_Handler,
 		},
 		{
 			MethodName: "ListExtensions",

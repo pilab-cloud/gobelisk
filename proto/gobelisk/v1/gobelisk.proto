@@ -16,6 +16,8 @@ service Management {
   rpc SetDialPlan(SetDialPlanRequest) returns (SetDialPlanResponse);
   rpc ListCalls(ListCallsRequest) returns (ListCallsResponse);
   rpc OriginateCall(OriginateCallRequest) returns (OriginateCallResponse);
+  rpc GeneratePrompt(GeneratePromptRequest) returns (GeneratePromptResponse);
+  rpc TranscribeAudio(TranscribeAudioRequest) returns (TranscribeAudioResponse);
   rpc ListExtensions(ListExtensionsRequest) returns (ListExtensionsResponse);
   rpc GetExtension(GetExtensionRequest) returns (GetExtensionResponse);
   rpc CreateExtension(CreateExtensionRequest) returns (CreateExtensionResponse);
@@ -97,6 +99,22 @@ message OriginateCallRequest {
 }
 message OriginateCallResponse {
   string message = 1;
+}
+
+message GeneratePromptRequest {
+  string text = 1;
+  string voice = 2;
+  string output_path = 3;
+}
+message GeneratePromptResponse {
+  string path = 1;
+}
+
+message TranscribeAudioRequest {
+  string audio_path = 1;
+}
+message TranscribeAudioResponse {
+  string text = 1;
 }
 
 message ListExtensionsRequest {}

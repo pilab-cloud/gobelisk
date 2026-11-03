@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -26,12 +28,47 @@ type AuthConfig struct {
 	Users map[string]string `yaml:"users"`
 }
 
+// FeatureConfig holds call-feature toggles.
+type FeatureConfig struct {
+	// CallWaiting allows a second call to be delivered to an extension that is
+	// already in an established call, instead of answering 486 Busy Here.
+	CallWaiting bool `yaml:"call_waiting"`
+	// CallWaitingExtensions overrides CallWaiting per extension.
+	CallWaitingExtensions map[string]bool `yaml:"call_waiting_extensions"`
+	// RingTimeoutSeconds is how long a ring group member rings before the
+	// next member is tried (sequential strategies) or the call gives up
+	// (simultaneous). Defaults to 20.
+	RingTimeoutSeconds int `yaml:"ring_timeout_seconds"`
+}
+
 type Config struct {
-	Server            ServerConfig `yaml:"server"`
-	Auth              AuthConfig   `yaml:"auth"`
-	DialPlan          string       `yaml:"dialplan"`
-	MeetingServiceURL string       `yaml:"meeting_service_url"`
-	MeetingBridgeExt  string       `yaml:"meeting_bridge_ext"`
+	Server            ServerConfig     `yaml:"server"`
+	Auth              AuthConfig       `yaml:"auth"`
+	Features          FeatureConfig    `yaml:"features"`
+	VoiceAgent        VoiceAgentConfig `yaml:"voice_agent"`
+	DialPlan          string           `yaml:"dialplan"`
+	MeetingServiceURL string           `yaml:"meeting_service_url"`
+	MeetingBridgeExt  string           `yaml:"meeting_bridge_ext"`
+}
+
+// RingTimeout returns the configured ring timeout, falling back to the default.
+func (c *Config) RingTimeout() time.Duration {
+	secs := c.Features.RingTimeoutSeconds
+	if secs <= 0 {
+		secs = 20
+	}
+	return time.Duration(secs) * time.Second
+}
+
+// CallWaitingEnabled reports whether call waiting is enabled for an extension.
+func (c *Config) CallWaitingEnabled(ext string) bool {
+	if c == nil {
+		return false
+	}
+	if v, ok := c.Features.CallWaitingExtensions[ext]; ok {
+		return v
+	}
+	return c.Features.CallWaiting
 }
 
 func Default() *Config {
@@ -49,11 +86,39 @@ func Default() *Config {
 			Realm: "gobelisk",
 			Users: map[string]string{},
 		},
+		Features: FeatureConfig{
+			CallWaiting:           true,
+			CallWaitingExtensions: map[string]bool{},
+			RingTimeoutSeconds:    20,
+		},
+		VoiceAgent: func() VoiceAgentConfig {
+			va := VoiceAgentConfig{}
+			va.ApplyDefaults()
+			return va
+		}(),
 	}
 }
 
 func Load(path string) (*Config, error) {
 	cfg := Default()
+	if path == "" {
+		if envPath := os.Getenv("GOBELISK_CONFIG"); envPath != "" {
+			path = envPath
+		} else {
+			homeDir, _ := os.UserHomeDir()
+			candidates := []string{
+				"gobelisk.yaml",
+				"config.yaml",
+				filepath.Join(homeDir, ".gobelisk", "config.yaml"),
+			}
+			for _, cand := range candidates {
+				if _, err := os.Stat(cand); err == nil {
+					path = cand
+					break
+				}
+			}
+		}
+	}
 	if path == "" {
 		return cfg, nil
 	}
@@ -76,5 +141,6 @@ func Load(path string) (*Config, error) {
 	if cfg.Server.TLSPort == 0 {
 		cfg.Server.TLSPort = 15061
 	}
+	cfg.VoiceAgent.ApplyDefaults()
 	return cfg, nil
 }

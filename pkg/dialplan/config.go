@@ -9,7 +9,12 @@ import (
 )
 
 // ApplyConfig parses a decision-language config and populates dp and ivrMgr.
+// Routes and ring groups are replaced, so reloading a config does not
+// accumulate stale entries.
 func ApplyConfig(dp *DialPlan, ivrMgr *ivr.Manager, text string) error {
+	dp.Rules = nil
+	dp.RingGroups = make(map[string]*RingGroup)
+
 	scanner := bufio.NewScanner(strings.NewReader(text))
 	var currentMenu *ivr.Menu
 	inMenu := false
@@ -87,6 +92,17 @@ func ApplyConfig(dp *DialPlan, ivrMgr *ivr.Manager, text string) error {
 			continue
 		}
 
+		// ringgroup <name> -> <ext> [<ext>...]
+		// ringgroup <name> strategy <strategy> -> <ext> [<ext>...]
+		if strings.HasPrefix(line, "ringgroup ") {
+			group, err := parseRingGroup(line)
+			if err != nil {
+				return err
+			}
+			dp.RingGroups[group.Name] = group
+			continue
+		}
+
 		// route <pattern> -> <action>
 		if strings.HasPrefix(line, "route ") {
 			fields := strings.Fields(line)
@@ -134,4 +150,57 @@ func ApplyConfig(dp *DialPlan, ivrMgr *ivr.Manager, text string) error {
 	}
 
 	return scanner.Err()
+}
+
+// parseRingGroup parses a ringgroup config line:
+//
+//	ringgroup sales -> 100 101 102
+//	ringgroup sales strategy round-robin -> 100, 101, 102
+//
+// The optional "ext" keyword in the member list is accepted for readability.
+func parseRingGroup(line string) (*RingGroup, error) {
+	fields := strings.Fields(line)
+	if len(fields) < 4 {
+		return nil, fmt.Errorf("ringgroup needs a name and members: %s", line)
+	}
+
+	name := fields[1]
+	strategy := StrategySimultaneous
+
+	rest := fields[2:]
+	if len(rest) >= 2 && rest[0] == "strategy" {
+		strategy = RingStrategy(rest[1])
+		rest = rest[2:]
+	}
+
+	arrow := -1
+	for i, f := range rest {
+		if f == "->" {
+			arrow = i
+			break
+		}
+	}
+	if arrow < 0 || arrow+1 >= len(rest) {
+		return nil, fmt.Errorf("ringgroup is missing '-> members': %s", line)
+	}
+
+	switch strategy {
+	case StrategySimultaneous, StrategyRoundRobin, StrategyLeastRecent:
+	default:
+		return nil, fmt.Errorf("ringgroup %s: unknown strategy %q", name, strategy)
+	}
+
+	var members []string
+	for _, m := range rest[arrow+1:] {
+		m = strings.Trim(strings.TrimSpace(m), ",")
+		if m == "" || m == "ext" {
+			continue
+		}
+		members = append(members, m)
+	}
+	if len(members) == 0 {
+		return nil, fmt.Errorf("ringgroup %s has no members", name)
+	}
+
+	return &RingGroup{Name: name, Members: members, Strategy: strategy}, nil
 }

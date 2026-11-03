@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"regexp"
 	"strings"
 	"sync"
@@ -34,9 +35,11 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/devopshaven/gobelisk/pkg/meeting"
+	"github.com/devopshaven/gobelisk/pkg/ringgroup"
 	"github.com/devopshaven/gobelisk/pkg/rooms"
 	"github.com/devopshaven/gobelisk/pkg/sip"
 	"github.com/devopshaven/gobelisk/pkg/sip/auth"
+	"github.com/devopshaven/gobelisk/pkg/voicemail"
 	"github.com/rs/zerolog"
 )
 
@@ -60,6 +63,9 @@ type Server struct {
 	ivr           *ivr.Manager
 	meetingClient *meeting.Client
 
+	// ringState tracks round-robin / least-recent scheduling for ring groups.
+	ringState *ringgroup.State
+
 	// configuration and RPC
 	cfg        *config.Config
 	configPath string
@@ -78,6 +84,10 @@ type Server struct {
 
 	msgCh  chan sipMsg
 	doneCh chan struct{}
+
+	// onListen, when set, is called once the UDP socket is bound. Tests use it
+	// to wait for the listener without racing on the server fields.
+	onListen func()
 }
 
 type sipMsg struct {
@@ -105,6 +115,92 @@ type Call struct {
 	MeetingID  string
 	SessionID  string
 	respCh     chan *sip.RawMessage
+
+	// Answered is true once the callee accepted the call (2xx). It marks the
+	// callee extension as busy for call-waiting purposes.
+	Answered bool
+	// Group is the ring group name while a group call is being set up.
+	Group string
+
+	mu       sync.Mutex
+	branches map[string]*ringBranch // top Via branch -> forked INVITE target
+	ringCh   chan ringBranchResp
+	cancelCh chan struct{}
+}
+
+// ringBranch is one forked INVITE in a ring group call.
+type ringBranch struct {
+	Ext  string
+	Addr *net.UDPAddr
+	Via  string
+}
+
+// ringBranchResp is a response received for one forked INVITE.
+type ringBranchResp struct {
+	branch *ringBranch
+	resp   *sip.RawMessage
+}
+
+func (c *Call) addBranch(b *ringBranch) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.branches == nil {
+		c.branches = make(map[string]*ringBranch)
+	}
+	c.branches[b.Via] = b
+}
+
+func (c *Call) branchForVia(via string) *ringBranch {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.branches == nil {
+		return nil
+	}
+	return c.branches[topViaBranch(via)]
+}
+
+func (c *Call) clearBranches() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.branches = nil
+}
+
+func (c *Call) branchesSnapshot() []*ringBranch {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]*ringBranch, 0, len(c.branches))
+	for _, b := range c.branches {
+		out = append(out, b)
+	}
+	return out
+}
+
+// canceled reports whether the call was cancelled by the caller.
+func (c *Call) canceled() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.cancelCh == nil {
+		return false
+	}
+	select {
+	case <-c.cancelCh:
+		return true
+	default:
+		return false
+	}
+}
+
+// cancel signals ring group workers to stop trying members.
+func (c *Call) cancel() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.cancelCh != nil {
+		select {
+		case <-c.cancelCh:
+		default:
+			close(c.cancelCh)
+		}
+	}
 }
 
 // ServerOpts are options that can be passed to NewServer.
@@ -175,12 +271,13 @@ func WithConfigPath(p string) ServerOpts {
 // NewServer creates a new Server.
 func NewServer(opts ...ServerOpts) *Server {
 	s := &Server{
-		host:   "127.0.0.1",
-		regs:   make(map[string]*Registration),
-		calls:  make(map[string]*Call),
-		msgCh:  make(chan sipMsg, 256),
-		doneCh: make(chan struct{}, 1),
-		log:    zerolog.Nop(),
+		host:      "127.0.0.1",
+		regs:      make(map[string]*Registration),
+		calls:     make(map[string]*Call),
+		ringState: ringgroup.NewState(),
+		msgCh:     make(chan sipMsg, 256),
+		doneCh:    make(chan struct{}, 1),
+		log:       zerolog.Nop(),
 	}
 
 	for _, o := range opts {
@@ -247,6 +344,10 @@ func (s *Server) ListenUDP(port int) error {
 	s.conn = conn
 
 	s.log.Info().Msgf("server listening on :%d", port)
+
+	if s.onListen != nil {
+		s.onListen()
+	}
 
 	go s.readLoop(conn)
 
@@ -648,6 +749,53 @@ func (s *Server) OriginateCall(ctx context.Context, req *gobeliskv1.OriginateCal
 	return &gobeliskv1.OriginateCallResponse{Message: "ok"}, nil
 }
 
+func (s *Server) GeneratePrompt(ctx context.Context, req *gobeliskv1.GeneratePromptRequest) (*gobeliskv1.GeneratePromptResponse, error) {
+	voice := req.Voice
+	cmd := ""
+	modelPath := ""
+	if s.cfg != nil {
+		if voice == "" {
+			voice = s.cfg.VoiceAgent.TTS.Voice
+		}
+		cmd = s.cfg.VoiceAgent.TTS.Command
+		modelPath = s.cfg.VoiceAgent.TTS.ModelPath
+	}
+	if voice == "" {
+		voice = "anna"
+	}
+	out := req.OutputPath
+	if out == "" {
+		out = "/tmp/prompt.wav"
+	}
+	if err := voicemail.TTSWithConfig(req.Text, out, cmd, modelPath, voice); err != nil {
+		return nil, err
+	}
+	return &gobeliskv1.GeneratePromptResponse{Path: out}, nil
+}
+
+func (s *Server) TranscribeAudio(ctx context.Context, req *gobeliskv1.TranscribeAudioRequest) (*gobeliskv1.TranscribeAudioResponse, error) {
+	// Convert to 16kHz if needed
+	tmp := req.AudioPath + ".16k.wav"
+	if err := exec.Command("ffmpeg", "-y", "-i", req.AudioPath, "-ar", "16000", "-ac", "1", tmp).Run(); err != nil {
+		s.log.Warn().Err(err).Msg("ffmpeg conversion failed")
+		tmp = req.AudioPath
+	}
+	var modelPath, device, language string
+	if s.cfg != nil {
+		modelPath = s.cfg.VoiceAgent.ASR.ModelPath
+		device = s.cfg.VoiceAgent.ASR.Device
+		language = s.cfg.VoiceAgent.ASR.Language
+	}
+	text, err := voicemail.TranscribeWithConfig(tmp, modelPath, device, language)
+	if err != nil {
+		s.log.Warn().Err(err).Str("tmp", tmp).Msg("transcription failed")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &gobeliskv1.TranscribeAudioResponse{Text: text}, nil
+}
+
 func (s *Server) ListCalls(ctx context.Context, req *gobeliskv1.ListCallsRequest) (*gobeliskv1.ListCallsResponse, error) {
 	s.callMu.Lock()
 	defer s.callMu.Unlock()
@@ -964,6 +1112,11 @@ func (s *Server) handleInvite(m sipMsg) {
 	target := s.dialPlan.Parse(dialed)
 	s.log.Debug().Str("dialed", dialed).Str("targetType", string(target.Type)).Str("targetValue", target.Value).Msg("dialplan resolved")
 
+	if target.Type == dialplan.TargetRingGroup {
+		s.handleRingGroupInvite(m, target.Value)
+		return
+	}
+
 	calleeExt := ""
 	resolvedExt, ok := s.dialPlan.ResolveExtension(target)
 	if !ok {
@@ -985,6 +1138,18 @@ func (s *Server) handleInvite(m sipMsg) {
 		s.log.Warn().Str("callee", calleeExt).Msg("callee not registered")
 		m.respond(buildResponse(req, 404, "Not Found", nil, ""))
 		return
+	}
+
+	// Call waiting: an extension already in a call may still receive another
+	// one. Without it, reject the new call as busy.
+	callWaiting := false
+	if s.extBusy(calleeExt) {
+		if !s.callWaitingEnabled(calleeExt) {
+			s.log.Info().Str("callee", calleeExt).Msg("callee busy, call waiting disabled")
+			m.respond(buildResponse(req, 486, "Busy Here", nil, ""))
+			return
+		}
+		callWaiting = true
 	}
 
 	// 100 Trying
@@ -1010,6 +1175,10 @@ func (s *Server) handleInvite(m sipMsg) {
 		"Via":     serverVia,
 		"Contact": fmt.Sprintf("<sip:server@%s:%d>", s.host, s.port),
 	}
+	if callWaiting {
+		// RFC 7462 call-waiting alert so the phone plays the special tone.
+		extraHeaders["Alert-Info"] = "<urn:alert:service:call-waiting>"
+	}
 
 	inviteMsg := buildRequest("INVITE", reqURI, req, extraHeaders, req.Body)
 
@@ -1021,10 +1190,16 @@ func (s *Server) handleInvite(m sipMsg) {
 	for {
 		select {
 		case resp := <-call.respCh:
+			// Mark the extension busy before the caller can learn the call was
+			// answered, so a second call sees it as busy immediately.
+			answered := resp.StatusCode >= 200 && resp.StatusCode < 300
+			if answered {
+				s.markAnswered(call)
+			}
 			fwd := buildResponseFromRaw(resp, req)
 			s.sendRaw(callerAddr, fwd)
 			if resp.StatusCode >= 200 {
-				if resp.StatusCode >= 300 {
+				if !answered {
 					s.removeCall(callID)
 				}
 				return
@@ -1035,6 +1210,238 @@ func (s *Server) handleInvite(m sipMsg) {
 			return
 		}
 	}
+}
+
+// handleRingGroupInvite forks an incoming INVITE to the available members of a
+// ring group and bridges the caller to the first member that answers.
+func (s *Server) handleRingGroupInvite(m sipMsg, name string) {
+	req := m.msg
+	callID := getHeader(req, "Call-ID")
+
+	group := s.dialPlan.RingGroups[name]
+	if group == nil {
+		s.log.Warn().Str("group", name).Msg("unknown ring group")
+		m.respond(buildResponse(req, 404, "Not Found", nil, ""))
+		return
+	}
+
+	// Only registered members that are not already in a call can ring.
+	var members []*Registration
+	for _, ext := range group.Members {
+		if s.extBusy(ext) {
+			s.log.Debug().Str("ext", ext).Str("group", name).Msg("skipping busy ring group member")
+			continue
+		}
+		if reg := s.getReg(ext); reg != nil && reg.Addr != nil {
+			members = append(members, reg)
+		}
+	}
+	if len(members) == 0 {
+		s.log.Info().Str("group", name).Msg("ring group has no available members")
+		m.respond(buildResponse(req, 480, "Temporarily Unavailable", nil, ""))
+		return
+	}
+
+	order := s.ringState.Order(name, group.Strategy, registrationExts(members))
+	byExt := make(map[string]*Registration, len(members))
+	for _, reg := range members {
+		byExt[reg.Ext] = reg
+	}
+	ordered := make([]*Registration, 0, len(order))
+	for _, ext := range order {
+		if reg := byExt[ext]; reg != nil {
+			ordered = append(ordered, reg)
+		}
+	}
+
+	s.log.Info().Str("callID", callID).Str("group", name).Str("strategy", string(group.Strategy)).Int("members", len(ordered)).Msg("ring group call")
+
+	m.respond(buildResponse(req, 100, "Trying", nil, ""))
+
+	call := &Call{
+		CallID:     callID,
+		CallerAddr: m.addr,
+		Group:      name,
+		respCh:     make(chan *sip.RawMessage, 32),
+		ringCh:     make(chan ringBranchResp, 256),
+		cancelCh:   make(chan struct{}),
+	}
+	s.callMu.Lock()
+	s.calls[callID] = call
+	s.callMu.Unlock()
+
+	answered := false
+	defer func() {
+		if !answered {
+			s.removeCall(callID)
+		}
+	}()
+
+	var winner *ringBranch
+	var winnerResp *sip.RawMessage
+	switch group.Strategy {
+	case dialplan.StrategyRoundRobin, dialplan.StrategyLeastRecent:
+		winner, winnerResp = s.ringSequential(m, call, ordered)
+	default:
+		winner, winnerResp = s.ringSimultaneous(m, call, ordered)
+	}
+
+	if winner == nil {
+		s.cancelRingBranches(req, call, nil)
+		if call.canceled() {
+			// The caller hung up; the CANCEL exchange already answered it.
+			return
+		}
+		s.log.Info().Str("callID", callID).Str("group", name).Msg("ring group call went unanswered")
+		m.respond(buildResponse(req, 480, "Temporarily Unavailable", nil, ""))
+		return
+	}
+
+	// Everyone else stops ringing; the caller is bridged to the winner.
+	s.cancelRingBranches(req, call, winner)
+	call.clearBranches()
+
+	answered = true
+	s.bridgeRingWinner(call, winner)
+	s.ringState.MarkAnswered(name, winner.Ext)
+
+	s.log.Info().Str("callID", callID).Str("group", name).Str("callee", winner.Ext).Msg("ring group answered")
+	m.respond(buildResponseFromRaw(winnerResp, req))
+}
+
+// ringSimultaneous rings all members at once and returns the first to answer.
+func (s *Server) ringSimultaneous(m sipMsg, call *Call, members []*Registration) (*ringBranch, *sip.RawMessage) {
+	req := m.msg
+
+	pending := 0
+	for _, reg := range members {
+		s.sendRingInvite(req, call, reg)
+		pending++
+	}
+
+	timeout := time.After(s.ringTimeout())
+	ringing := false
+	for pending > 0 {
+		select {
+		case r := <-call.ringCh:
+			switch code := r.resp.StatusCode; {
+			case code < 180:
+				// 100 Trying, keep waiting.
+			case code == 180 || code == 183:
+				if !ringing {
+					m.respond(buildResponse(req, 180, "Ringing", nil, ""))
+					ringing = true
+				}
+			case code >= 200 && code < 300:
+				return r.branch, r.resp
+			case code >= 300:
+				pending--
+			}
+		case <-call.cancelCh:
+			return nil, nil
+		case <-timeout:
+			return nil, nil
+		}
+	}
+	return nil, nil
+}
+
+// ringSequential rings one member at a time, in the order given by the
+// strategy, and moves on when a member does not answer in time or rejects the
+// call.
+func (s *Server) ringSequential(m sipMsg, call *Call, members []*Registration) (*ringBranch, *sip.RawMessage) {
+	req := m.msg
+	ringing := false
+
+	for _, reg := range members {
+		br := s.sendRingInvite(req, call, reg)
+		deadline := time.After(s.ringTimeout())
+		next := false
+		final := false
+
+		for !next {
+			select {
+			case r := <-call.ringCh:
+				if r.branch != br {
+					continue
+				}
+				switch code := r.resp.StatusCode; {
+				case code < 180:
+					// 100 Trying, keep waiting.
+				case code == 180 || code == 183:
+					if !ringing {
+						m.respond(buildResponse(req, 180, "Ringing", nil, ""))
+						ringing = true
+					}
+				case code >= 200 && code < 300:
+					return br, r.resp
+				case code >= 300:
+					final = true
+					next = true
+				}
+			case <-call.cancelCh:
+				return nil, nil
+			case <-deadline:
+				next = true
+			}
+		}
+		// Only still-ringing branches need a CANCEL.
+		if !final {
+			s.cancelRingBranch(req, br)
+		}
+	}
+	return nil, nil
+}
+
+// sendRingInvite forks an INVITE to one ring group member.
+func (s *Server) sendRingInvite(req *sip.RawMessage, call *Call, reg *Registration) *ringBranch {
+	branch := fmt.Sprintf("z9hG4bK%d", time.Now().UnixNano())
+	serverVia := fmt.Sprintf("SIP/2.0/UDP %s:%d;branch=%s", s.host, s.port, branch)
+	br := &ringBranch{Ext: reg.Ext, Addr: reg.Addr, Via: branch}
+	call.addBranch(br)
+
+	uri := fmt.Sprintf("sip:%s@%s", reg.Ext, reg.Addr.String())
+	msg := buildRequest("INVITE", uri, req, map[string]string{
+		"Via":     serverVia,
+		"Contact": fmt.Sprintf("<sip:server@%s:%d>", s.host, s.port),
+	}, req.Body)
+
+	s.log.Debug().Str("callID", call.CallID).Str("callee", reg.Ext).Msg("ringing group member")
+	s.sendRaw(reg.Addr, msg)
+	return br
+}
+
+// cancelRingBranch stops one ringing branch.
+func (s *Server) cancelRingBranch(req *sip.RawMessage, br *ringBranch) {
+	if br == nil || br.Addr == nil {
+		return
+	}
+	serverVia := fmt.Sprintf("SIP/2.0/UDP %s:%d;branch=%s", s.host, s.port, br.Via)
+	uri := fmt.Sprintf("sip:%s@%s", br.Ext, br.Addr.String())
+	msg := buildRequest("CANCEL", uri, req, map[string]string{
+		"Via": serverVia,
+	}, "")
+	s.sendRaw(br.Addr, msg)
+}
+
+// cancelRingBranches stops every ringing branch except keep.
+func (s *Server) cancelRingBranches(req *sip.RawMessage, call *Call, keep *ringBranch) {
+	for _, br := range call.branchesSnapshot() {
+		if br == keep {
+			continue
+		}
+		s.cancelRingBranch(req, br)
+	}
+}
+
+// bridgeRingWinner makes the winner of a ring group the callee of the call so
+// that ACK, BYE and in-dialog requests are routed to it.
+func (s *Server) bridgeRingWinner(call *Call, winner *ringBranch) {
+	s.callMu.Lock()
+	defer s.callMu.Unlock()
+	call.CalleeExt = winner.Ext
+	call.CalleeAddr = winner.Addr
+	call.Answered = true
 }
 
 func (s *Server) handleAck(m sipMsg) {
@@ -1065,6 +1472,13 @@ func (s *Server) handleBye(m sipMsg) {
 
 	target := m.addr
 	if call != nil {
+		// Still ringing a group: stop the forks instead of forwarding.
+		if call.CalleeAddr == nil {
+			call.cancel()
+			s.cancelRingBranches(req, call, nil)
+			s.removeCall(callID)
+			return
+		}
 		// forward to other party
 		var other *net.UDPAddr
 		if m.addr.String() == call.CallerAddr.String() {
@@ -1096,6 +1510,13 @@ func (s *Server) handleCancel(m sipMsg) {
 
 	call := s.getCall(callID)
 	if call != nil {
+		// Still ringing a group: stop every fork.
+		if call.CalleeAddr == nil {
+			call.cancel()
+			s.cancelRingBranches(req, call, nil)
+			s.removeCall(callID)
+			return
+		}
 		// forward CANCEL to callee
 		branch := fmt.Sprintf("z9hG4bK%d", time.Now().UnixNano())
 		serverVia := fmt.Sprintf("SIP/2.0/UDP %s:%d;branch=%s", s.host, s.port, branch)
@@ -1116,11 +1537,22 @@ func (s *Server) routeResponse(m sipMsg) {
 	resp := m.msg
 	callID := getHeader(resp, "Call-ID")
 	call := s.getCall(callID)
-	if call != nil {
-		call.respCh <- resp
+	if call == nil {
+		s.log.Debug().Str("callID", callID).Int("code", resp.StatusCode).Msg("unmatched response")
 		return
 	}
-	s.log.Debug().Str("callID", callID).Int("code", resp.StatusCode).Msg("unmatched response")
+
+	// Ring group responses are matched to the forked INVITE via its branch.
+	if br := call.branchForVia(getHeader(resp, "Via")); br != nil {
+		select {
+		case call.ringCh <- ringBranchResp{branch: br, resp: resp}:
+		default:
+			s.log.Debug().Str("callID", callID).Str("ext", br.Ext).Int("code", resp.StatusCode).Msg("ring branch response dropped")
+		}
+		return
+	}
+
+	call.respCh <- resp
 }
 
 // ---- helpers ----
@@ -1143,6 +1575,38 @@ func (s *Server) getCall(id string) *Call {
 	s.callMu.Lock()
 	defer s.callMu.Unlock()
 	return s.calls[id]
+}
+
+// extBusy reports whether an extension is currently in an established call.
+func (s *Server) extBusy(ext string) bool {
+	s.callMu.Lock()
+	defer s.callMu.Unlock()
+	for _, c := range s.calls {
+		if c.Answered && c.CalleeExt == ext {
+			return true
+		}
+	}
+	return false
+}
+
+// markAnswered marks a call as established.
+func (s *Server) markAnswered(call *Call) {
+	s.callMu.Lock()
+	defer s.callMu.Unlock()
+	call.Answered = true
+}
+
+// callWaitingEnabled reports whether ext accepts a second call.
+func (s *Server) callWaitingEnabled(ext string) bool {
+	return s.cfg != nil && s.cfg.CallWaitingEnabled(ext)
+}
+
+// ringTimeout is how long a ring group member rings.
+func (s *Server) ringTimeout() time.Duration {
+	if s.cfg != nil {
+		return s.cfg.RingTimeout()
+	}
+	return 20 * time.Second
 }
 
 func (s *Server) removeCall(id string) {
@@ -1178,6 +1642,29 @@ func getHeader(rm *sip.RawMessage, name string) string {
 		}
 	}
 	return ""
+}
+
+// topViaBranch extracts the branch parameter from the topmost Via header.
+func topViaBranch(via string) string {
+	if i := strings.Index(via, ","); i >= 0 {
+		via = via[:i]
+	}
+	for _, part := range strings.Split(via, ";") {
+		part = strings.TrimSpace(part)
+		if len(part) >= 7 && strings.EqualFold(part[:7], "branch=") {
+			return strings.TrimSpace(part[7:])
+		}
+	}
+	return ""
+}
+
+// registrationExts returns the extension numbers of the given registrations.
+func registrationExts(regs []*Registration) []string {
+	out := make([]string, 0, len(regs))
+	for _, reg := range regs {
+		out = append(out, reg.Ext)
+	}
+	return out
 }
 
 func userFromURI(uri string) string {
@@ -1368,6 +1855,15 @@ func buildRequest(method, uri string, orig *sip.RawMessage, overrides map[string
 
 	if v, ok := overrides["Contact"]; ok {
 		fmt.Fprintf(&b, "Contact: %s\r\n", v)
+	}
+
+	// Any other supplied header (for example Alert-Info) is passed through.
+	for k, v := range overrides {
+		switch k {
+		case "Via", "Max-Forwards", "Contact":
+			continue
+		}
+		fmt.Fprintf(&b, "%s: %s\r\n", k, v)
 	}
 
 	if body != "" {

@@ -1,0 +1,9 @@
+.git
+.gitignore
+bin/
+transcripts/
+deploy/voice-agent/transcripts/
+deploy/voice-agent/config.yaml
+deploy/voice-agent/.env
+*.log
+poc/stt-vad-whisper/venv/

@@ -408,6 +408,37 @@ var callsListCmd = &cobra.Command{
 	},
 }
 
+var voiceCmd = &cobra.Command{Use: "voice", Short: "voice tools"}
+var genPromptCmd = &cobra.Command{
+	Use: "generate <text> [voice] [output]",
+	Args: cobra.MinimumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		text := args[0]
+		voice := "anna"
+		out := "/tmp/prompt.wav"
+		if len(args) > 1 { voice = args[1] }
+		if len(args) > 2 { out = args[2] }
+		client, conn, err := dialRPC()
+		if err != nil { fmt.Println("error:", err); return }
+		defer conn.Close()
+		resp, err := client.GeneratePrompt(withAuth(context.Background()), &gobeliskv1.GeneratePromptRequest{Text: text, Voice: voice, OutputPath: out})
+		if err != nil { fmt.Println("error:", err); return }
+		fmt.Println("generated:", resp.Path)
+	},
+}
+var transcribeCmd = &cobra.Command{
+	Use: "transcribe <audio_path>",
+	Args: cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		client, conn, err := dialRPC()
+		if err != nil { fmt.Println("error:", err); return }
+		defer conn.Close()
+		resp, err := client.TranscribeAudio(withAuth(context.Background()), &gobeliskv1.TranscribeAudioRequest{AudioPath: args[0]})
+		if err != nil { fmt.Println("error:", err); return }
+		fmt.Println(resp.Text)
+	},
+}
+
 func init() {
 	rootCmd.PersistentFlags().StringVar(&rpcAddr, "rpc-addr", "127.0.0.1:9090", "gRPC server address")
 	rootCmd.PersistentFlags().StringVar(&rpcToken, "rpc-token", "", "gRPC bearer token")
@@ -418,9 +449,10 @@ func init() {
 	dialplanCmd.AddCommand(dialplanGetCmd, dialplanSetCmd)
 	callsCmd.AddCommand(callsListCmd)
 	extensionsCmd.AddCommand(extensionsListCmd, extensionsGetCmd, extensionsCreateCmd, extensionsUpdateCmd, extensionsRemoveCmd)
+	voiceCmd.AddCommand(genPromptCmd, transcribeCmd)
 	roomsCmd.AddCommand(roomsListCmd, roomsCreateCmd, roomsRemoveCmd)
 	meetingsCmd.AddCommand(meetingsListCmd, meetingsCreateCmd, meetingsRemoveCmd)
-	manageCmd.AddCommand(usersCmd, configCmd, dialplanCmd, callsCmd, extensionsCmd, roomsCmd, meetingsCmd)
+	manageCmd.AddCommand(usersCmd, configCmd, dialplanCmd, callsCmd, extensionsCmd, roomsCmd, meetingsCmd, voiceCmd)
 	rootCmd.AddCommand(manageCmd)
 }
 

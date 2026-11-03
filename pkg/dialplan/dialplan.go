@@ -8,16 +8,38 @@ type TargetType string
 const (
 	TargetExtension TargetType = "extension"
 	TargetRoom      TargetType = "room"
-	TargetMenu     TargetType = "menu"
-	TargetMeeting  TargetType = "meeting"
-	TargetService  TargetType = "service"
+	TargetMenu      TargetType = "menu"
+	TargetMeeting   TargetType = "meeting"
+	TargetRingGroup TargetType = "ringgroup"
+	TargetService   TargetType = "service"
 	TargetUnknown   TargetType = "unknown"
 )
 
+// RingStrategy selects how a ring group distributes an incoming call.
+type RingStrategy string
+
+const (
+	// StrategySimultaneous rings every available member at once.
+	StrategySimultaneous RingStrategy = "simultaneous"
+	// StrategyRoundRobin rings one member at a time, starting after the last
+	// member that answered.
+	StrategyRoundRobin RingStrategy = "round-robin"
+	// StrategyLeastRecent rings members in order of how long ago they last
+	// answered, least recent first.
+	StrategyLeastRecent RingStrategy = "least-recent"
+)
+
+// RingGroup is a named set of extensions dialed as one number.
+type RingGroup struct {
+	Name     string
+	Members  []string
+	Strategy RingStrategy
+}
+
 // Target is the resolved destination of a dialed string.
 type Target struct {
-	Type    TargetType
-	Value   string // extension number / room name / menu name
+	Type     TargetType
+	Value    string // extension number / room name / menu name
 	Original string
 }
 
@@ -37,6 +59,8 @@ type DialPlan struct {
 	Menus map[string]string
 	// Meetings maps a meeting name to an endpoint extension (meeting gateway).
 	Meetings map[string]string
+	// RingGroups maps a ring group number/name to its members and strategy.
+	RingGroups map[string]*RingGroup
 	// Rules are ordered decision-language routes.
 	Rules []RouteRule
 }
@@ -48,6 +72,7 @@ func New() *DialPlan {
 		Rooms:      make(map[string]string),
 		Menus:      make(map[string]string),
 		Meetings:   make(map[string]string),
+		RingGroups: make(map[string]*RingGroup),
 		Rules:      []RouteRule{},
 	}
 }
@@ -88,6 +113,12 @@ func (d *DialPlan) Parse(input string) Target {
 						t.Value = fields[1]
 					}
 					return t
+				case "ringgroup":
+					t.Type = TargetRingGroup
+					if len(fields) > 1 {
+						t.Value = fields[1]
+					}
+					return t
 				case "hangup":
 					t.Type = TargetService
 					t.Value = "hangup"
@@ -99,6 +130,13 @@ func (d *DialPlan) Parse(input string) Target {
 				}
 			}
 		}
+	}
+
+	// A ring group may be dialed directly by its number or name.
+	if g, ok := d.RingGroups[input]; ok {
+		t.Type = TargetRingGroup
+		t.Value = g.Name
+		return t
 	}
 
 	// PIN entry: *<digits># or *<digits>

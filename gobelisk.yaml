@@ -1,0 +1,92 @@
+# Gobelisk PBX & Voice Agent Configuration
+# This file configures the PBX server, audio codecs, and local GPU voice AI stack.
+
+server:
+  host: "0.0.0.0"
+  udp_port: 15060
+  tcp_port: 15060
+  tls_port: 15061
+  grpc_port: 9090
+
+auth:
+  type: "none"
+  realm: "gobelisk"
+
+features:
+  call_waiting: true
+  ring_timeout_seconds: 20
+
+# Local AI Voice Customer Service Stack (100% Local Inference on Quadro T2000 GPU)
+voice_agent:
+  enabled: true
+  uid: "voice-agent"
+  display_name: "Gobelisk AI Asszisztens"
+  role: "agent"
+  language: "hu"
+  max_history: 20
+
+  # Greeting audio text announced when caller connects to IVR
+  greeting: "Üdvözlöm a Gobelisk telefonos ügyfélszolgálatán! Kérjük, válasszon menüpontot: 1-es gomb számlázás, 2-es gomb műszaki hibabejelentés, 3-as gomb értékesítés. Vagy csak egyszerűen beszéljen, figyeljük a vonalat!"
+
+  # System prompt for LLM customer service agent
+  system_prompt: |
+    Te vagy Maci, a Gobelisk PBX intelligens telefonos ügyfélszolgálati AI asszisztense.
+    Mindig válaszolj közvetlenül és érdemben arra, amit a hívó kérdez, természetes, tiszta magyar nyelven 1-2 tömör mondatban.
+    Ha a hívó viccet kér, mesélj el egy rövid, vicces magyar poént vagy faviccet.
+    Ha a beszélgetés már zajlik, SOHA ne köszönj újra feleslegesen, hanem közvetlenül a kérdésre vagy kérésre válaszolj!
+
+    Tool Execution Rules:
+    - When the user asks to speak with billing, technical support, or sales, call 'transfer_call'.
+    - When the user asks about bills, invoices, or amounts owed, call 'get_billing_invoice'.
+    - When the user reports an outage or equipment malfunction, call 'create_incident_ticket'.
+    - When the user orders freight or logistics shipment, call 'create_freight_order'.
+
+  # Voice Activity Detection (VAD) parameters
+  vad:
+    energy_threshold: 500.0  # RMS audio energy threshold for speech detection
+    silence_ms: 640          # Trailing silence duration to finalize utterance (5 * 128ms frames)
+    min_speech_ms: 380       # Minimum speech duration to trigger processing (3 * 128ms frames)
+    max_speech_ms: 5120      # Maximum utterance duration before forcing endpoint (40 * 128ms frames)
+    pre_roll_ms: 250
+
+  # Speech-to-Text (ASR) - Whisper GPU via Vulkan compute shaders
+  asr:
+    endpoint: "http://127.0.0.1:8099/inference"
+    model_path: "/opt/whisper/models/ggml-large-v3-turbo-q5_0.bin"
+    device: "1"              # GPU device ID (NVIDIA Quadro T2000)
+    language: "hu"
+    timeout_seconds: 30
+
+  # Large Language Model (LLM) - Local Ollama server
+  llm:
+    endpoint: "http://127.0.0.1:11434"
+    model: "qwen2.5:1.5b-instruct"
+    temperature: 0.5
+    max_tokens: 256
+    timeout_seconds: 15
+    keep_alive: "-1"         # Keep model resident in VRAM forever
+
+  # Text-to-Speech (TTS) - Piper Neural TTS engine
+  tts:
+    command: "piper"
+    model_path: "/opt/piper/models/hu_HU-anna-medium.onnx"
+    voice: "anna"
+    format: "wav"
+    sample_rate: 22050
+    timeout_seconds: 30
+
+  # Wake Word / Keyword Spotting (KWS) Gate
+  # The agent stays silent in STANDBY mode until the caller says the activation word.
+  # Any other speech or room noise is ignored without wasting LLM or TTS compute.
+  wake_word:
+    enabled: true
+    word: "maci"             # Case-insensitive activation keyword
+    aliases:                 # Phonetic variants Whisper may output for short "Maci"
+      - "marci"
+      - "márci"
+      - "macika"
+      - "márti"
+      - "márcik"
+      - "mátszik"
+    timeout_seconds: 25      # Returns to standby after 25s of inactivity
+    ack_phrase: "Igen, hallgatom!" # Instant acknowledgement when only wake word is spoken
