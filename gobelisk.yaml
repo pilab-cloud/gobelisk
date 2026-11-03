@@ -34,6 +34,22 @@ features:
   #      busy: "102"
   #      no_answer: "105"
   #      no_answer_seconds: 20
+  # Feature codes (GOBELISK-18): dialed as a number by a registered caller.
+  #   dnd_on / dnd_off toggle DND for the caller's extension,
+  #   park puts the caller into the next free park orbit slot.
+  feature_codes:
+    enabled: true
+    dnd_on: "*78"
+    dnd_off: "*79"
+    park: "*70"
+  # Call parking (GOBELISK-12): slots are the numbers
+  # orbit_start .. orbit_start+orbit_size-1 (unregistered numbers only —
+  # a registered extension always rings normally). timeout is how long a
+  # call may wait parked before the server hangs it up.
+  park:
+    orbit_start: 701
+    orbit_size: 10
+    timeout_seconds: 300
 
 # Local AI Voice Customer Service Stack (100% Local Inference on Quadro T2000 GPU)
 voice_agent:

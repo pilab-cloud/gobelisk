@@ -127,6 +127,17 @@ func (s *Server) handleInDialogUpdate(m sipMsg) {
 func (s *Server) forwardInDialog(m sipMsg, call *Call, method string) {
 	req := m.msg
 
+	// Virtual dialogs (parked calls) are anchored here: answer in-dialog
+	// refreshes locally instead of forwarding to ourselves (GOBELISK-12).
+	if call.Virtual {
+		body := ""
+		if req.Body != "" {
+			body = s.inactiveSDP()
+		}
+		m.respond(buildResponse(req, 200, "OK", nil, body))
+		return
+	}
+
 	leg := call.legOf(m)
 	if leg == "" {
 		s.log.Warn().Str("callID", call.CallID).Str("method", method).Msg("in-dialog request from unknown party")

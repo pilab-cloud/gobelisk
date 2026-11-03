@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -46,6 +47,32 @@ type FeatureConfig struct {
 	DNDExtensions []string `yaml:"dnd_extensions"`
 	// CallForward holds per-extension forwarding rules (GOBELISK-15).
 	CallForward map[string]ForwardConfig `yaml:"call_forward"`
+	// FeatureCodes are the dialable feature codes (GOBELISK-18).
+	FeatureCodes FeatureCodeConfig `yaml:"feature_codes"`
+	// Park is the call-park orbit (GOBELISK-12).
+	Park ParkConfig `yaml:"park"`
+}
+
+// FeatureCodeConfig lists the codes dialed as a number (GOBELISK-18).
+type FeatureCodeConfig struct {
+	// Enabled toggles feature-code interception; nil means on.
+	Enabled *bool `yaml:"enabled"`
+	// DNDOn / DNDOff toggle Do Not Disturb for the calling extension.
+	DNDOn  string `yaml:"dnd_on"`
+	DNDOff string `yaml:"dnd_off"`
+	// Park parks the calling party in the next free orbit slot.
+	Park string `yaml:"park"`
+}
+
+// enabled returns the effective master switch (default: on).
+func (f FeatureCodeConfig) enabled() bool { return f.Enabled == nil || *f.Enabled }
+
+// ParkConfig is the call-park orbit (GOBELISK-12): slots are plain numbers
+// OrbitStart .. OrbitStart+OrbitSize-1. OrbitSize 0 disables parking.
+type ParkConfig struct {
+	OrbitStart     int `yaml:"orbit_start"`
+	OrbitSize      int `yaml:"orbit_size"`
+	TimeoutSeconds int `yaml:"timeout_seconds"`
 }
 
 // ForwardConfig is call forwarding for one extension: all three targets are
@@ -157,6 +184,44 @@ func (c *Config) Forward(ext string) ForwardConfig {
 	return c.Features.CallForward[ext]
 }
 
+// FeatureCodesEnabled reports whether feature codes are intercepted (GOBELISK-18).
+func (c *Config) FeatureCodesEnabled() bool {
+	return c == nil || c.Features.FeatureCodes.enabled()
+}
+
+// ParkSlot maps a dialed number to a zero-based orbit slot, if it is inside
+// the park orbit (GOBELISK-12).
+func (c *Config) ParkSlot(ext string) (int, bool) {
+	if c == nil || c.Features.Park.OrbitSize <= 0 {
+		return 0, false
+	}
+	n, err := strconv.Atoi(ext)
+	if err != nil {
+		return 0, false
+	}
+	slot := n - c.Features.Park.OrbitStart
+	if slot < 0 || slot >= c.Features.Park.OrbitSize {
+		return 0, false
+	}
+	return slot, true
+}
+
+// ParkNumber returns the dialable number of an orbit slot.
+func (c *Config) ParkNumber(slot int) string {
+	if c == nil {
+		return strconv.Itoa(slot)
+	}
+	return strconv.Itoa(c.Features.Park.OrbitStart + slot)
+}
+
+// ParkTimeout is how long a call may wait parked before it is hung up.
+func (c *Config) ParkTimeout() time.Duration {
+	if c == nil || c.Features.Park.TimeoutSeconds <= 0 {
+		return 300 * time.Second
+	}
+	return time.Duration(c.Features.Park.TimeoutSeconds) * time.Second
+}
+
 func Default() *Config {
 	return &Config{
 		Server: ServerConfig{
@@ -182,6 +247,17 @@ func Default() *Config {
 			},
 			DNDExtensions: []string{},
 			CallForward:   map[string]ForwardConfig{},
+			FeatureCodes: FeatureCodeConfig{
+				Enabled: Bool(true),
+				DNDOn:   "*78",
+				DNDOff:  "*79",
+				Park:    "*70",
+			},
+			Park: ParkConfig{
+				OrbitStart:     701,
+				OrbitSize:      10,
+				TimeoutSeconds: 300,
+			},
 		},
 		VoiceAgent: func() VoiceAgentConfig {
 			va := VoiceAgentConfig{}

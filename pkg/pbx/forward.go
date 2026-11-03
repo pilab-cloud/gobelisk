@@ -25,11 +25,20 @@ type dialResult struct {
 	reg         *Registration
 	callWaiting bool
 	fwd         config.ForwardConfig
+	// parkSlot is the orbit slot a park number dialed. parked marks the dial
+	// as a park-slot dial at all; parkEmpty means the caller waits at the
+	// server, otherwise it is the pickup of a parked call (GOBELISK-12).
+	parked    bool
+	parkSlot  int
+	parkEmpty bool
 }
 
-// dndEnabled reports whether ext has Do Not Disturb on (GOBELISK-14).
+// dndEnabled reports whether ext has Do Not Disturb on. The runtime set is
+// seeded from configuration and toggled by feature codes (GOBELISK-14 / 18).
 func (s *Server) dndEnabled(ext string) bool {
-	return s.cfg != nil && s.cfg.DNDEnabled(ext)
+	s.dndMu.Lock()
+	defer s.dndMu.Unlock()
+	return s.dndOn[ext]
 }
 
 // forwardConfig returns the call-forwarding rules of ext (GOBELISK-15).
@@ -81,6 +90,33 @@ func (s *Server) resolveCallee(m sipMsg, dialed string, hops *int) (*dialResult,
 
 		reg := s.getReg(calleeExt)
 		if reg == nil {
+			// Park orbit (GOBELISK-12): an unregistered number inside the
+			// orbit is a slot, never a 404. An occupied slot connects the
+			// caller to the parked party; an empty one parks the caller at
+			// the server. A registered extension always rings normally, so
+			// the orbit may overlap extension numbering.
+			if slot, inOrbit := s.parkSlotFor(calleeExt); inOrbit {
+				if parked := s.parkedAt(slot); parked != nil {
+					s.log.Info().Str("callee", calleeExt).Str("parked", parked.CallID).Msg("picking up parked call")
+					return &dialResult{
+						target:    target,
+						calleeExt: calleeExt,
+						reg: &Registration{
+							Ext:  calleeExt,
+							Addr: parked.CallerAddr,
+						},
+						parked:   true,
+						parkSlot: slot,
+					}, true
+				}
+				return &dialResult{
+					target:    target,
+					calleeExt: calleeExt,
+					parked:    true,
+					parkSlot:  slot,
+					parkEmpty: true,
+				}, true
+			}
 			s.log.Warn().Str("callee", calleeExt).Msg("callee not registered")
 			m.respond(buildResponse(req, 404, "Not Found", nil, ""))
 			return nil, false

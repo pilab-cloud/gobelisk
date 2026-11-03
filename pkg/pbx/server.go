@@ -88,6 +88,21 @@ type Server struct {
 	pendingByBranch map[string]*pendingTx
 	pendingByKey    map[string]string
 
+	// runtime Do Not Disturb state: configuration seeds it, feature codes
+	// toggle it until the next reload (GOBELISK-18).
+	dndMu sync.Mutex
+	dndOn map[string]bool
+
+	// park orbit (GOBELISK-12): slot -> parked call and slot -> expiry timer.
+	parkMu     sync.Mutex
+	parks      map[int]*parkEntry
+	parkTimers map[int]*time.Timer
+
+	// featureLast replays the answer to a retransmitted feature-code INVITE
+	// instead of executing the action twice (GOBELISK-18).
+	featureMu   sync.Mutex
+	featureLast map[string]featureEntry
+
 	msgCh  chan sipMsg
 	doneCh chan struct{}
 
@@ -132,6 +147,9 @@ type Call struct {
 	// Answered is true once the callee accepted the call (2xx). It marks the
 	// callee extension as busy for call-waiting purposes.
 	Answered bool
+	// Virtual calls are answered by the PBX itself (park slots): ACKs and
+	// in-dialog requests never leave the server (GOBELISK-12).
+	Virtual bool
 	// Group is the ring group name while a group call is being set up.
 	Group string
 
@@ -301,6 +319,10 @@ func NewServer(opts ...ServerOpts) *Server {
 		calls:           make(map[string]*Call),
 		pendingByBranch: make(map[string]*pendingTx),
 		pendingByKey:    make(map[string]string),
+		dndOn:           make(map[string]bool),
+		parks:           make(map[int]*parkEntry),
+		parkTimers:      make(map[int]*time.Timer),
+		featureLast:     make(map[string]featureEntry),
 		ringState:       ringgroup.NewState(),
 		msgCh:           make(chan sipMsg, 256),
 		doneCh:          make(chan struct{}, 1),
@@ -329,6 +351,7 @@ func NewServer(opts ...ServerOpts) *Server {
 	if s.cfg == nil {
 		s.cfg = config.Default()
 	}
+	s.seedDND()
 	if s.rpcPort == 0 {
 		s.rpcPort = 8080
 	}
@@ -648,6 +671,7 @@ func (s *Server) ReloadConfig(ctx context.Context, req *gobeliskv1.ReloadConfigR
 		return nil, err
 	}
 	s.cfg = c
+	s.seedDND()
 	if s.dialPlan != nil && c.DialPlan != "" {
 		dialplan.ApplyConfig(s.dialPlan, s.ivr, c.DialPlan)
 	}
@@ -1149,6 +1173,15 @@ func (s *Server) handleInvite(m sipMsg) {
 		dialed = userFromURI(getHeader(req, "To"))
 	}
 
+	// Feature codes (GOBELISK-18): *78/*79 toggle DND, *70 parks the caller
+	// by routing it into the next free orbit slot.
+	if intercepted, route := s.featureCode(m, dialed); intercepted {
+		if route == "" {
+			return
+		}
+		dialed = route
+	}
+
 	fromHeader := getHeader(req, "From")
 	overall := time.After(60 * time.Second)
 	hops := 0
@@ -1162,6 +1195,12 @@ func (s *Server) handleInvite(m sipMsg) {
 		}
 		if res.ringGroup != "" {
 			s.handleRingGroupInvite(m, res.ringGroup)
+			return
+		}
+		if res.parkEmpty {
+			// The server answers here and keeps the caller parked
+			// (GOBELISK-12).
+			s.answerParked(m, callID, res.parkSlot)
 			return
 		}
 
@@ -1236,6 +1275,11 @@ func (s *Server) handleInvite(m sipMsg) {
 		select {
 		case resp := <-notify:
 			if resp.StatusCode >= 200 {
+				// A successful pickup of a parked call releases the
+				// parked dialog (GOBELISK-12).
+				if resp.StatusCode < 300 && res.parked && !res.parkEmpty {
+					s.releasePark(res.parkSlot, "picked up")
+				}
 				if resp.StatusCode >= 300 {
 					s.removeCall(callID)
 				}
@@ -1525,6 +1569,11 @@ func (s *Server) handleAck(m sipMsg) {
 		s.log.Debug().Str("callID", callID).Msg("ACK for unknown call")
 		return
 	}
+	if call.Virtual {
+		// The server is the only far side; the ACK ends the transaction
+		// here and has nowhere to go (GOBELISK-12).
+		return
+	}
 	// Route by dialog leg: the UAC that sent the INVITE (re-INVITE included)
 	// sends the ACK, so it must reach the opposite leg (GOBELISK-10).
 	leg := call.legOf(m)
@@ -1556,6 +1605,15 @@ func (s *Server) handleBye(m sipMsg) {
 	m.respond(buildResponse(req, 200, "OK", nil, ""))
 
 	if call != nil {
+		// The parked party hung up: free the slot instead of forwarding —
+		// the server is the far side of this dialog (GOBELISK-12).
+		if call.Virtual {
+			if slot, ok := s.freeParkByCallID(callID); ok {
+				s.log.Info().Str("callID", callID).Int("slot", slot).Msg("parked call hung up")
+			}
+			s.removeCall(callID)
+			return
+		}
 		// Still ringing a group: stop the forks instead of forwarding.
 		if call.CalleeAddr == nil {
 			call.cancel()
@@ -1826,7 +1884,9 @@ func buildResponse(req *sip.RawMessage, code int, reason string, extra map[strin
 		fmt.Fprintf(&b, "From: %s\r\n", v)
 	}
 	to := getHeader(req, "To")
-	if to != "" {
+	if v, ok := extra["To"]; ok {
+		fmt.Fprintf(&b, "To: %s\r\n", v)
+	} else if to != "" {
 		fmt.Fprintf(&b, "To: %s\r\n", to)
 	}
 	if v := getHeader(req, "Call-ID"); v != "" {
@@ -1836,6 +1896,9 @@ func buildResponse(req *sip.RawMessage, code int, reason string, extra map[strin
 		fmt.Fprintf(&b, "CSeq: %s\r\n", v)
 	}
 	for k, v := range extra {
+		if k == "To" {
+			continue // already written above
+		}
 		fmt.Fprintf(&b, "%s: %s\r\n", k, v)
 	}
 	if body != "" {

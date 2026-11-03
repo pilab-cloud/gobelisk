@@ -15,13 +15,13 @@ Issue links point at the [PiR@ issue tracker](https://pira.hu) (`https://pira.hu
 - ✅ Re-INVITE / hold-resume forwarding
 - ✅ Hold/resume policy — [GOBELISK-10](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-10)
 - ✅ Attended/blind transfer — [GOBELISK-11](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-11)
-- ❌ Call parking / pickup — [GOBELISK-12](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-12)
+- ✅ Call parking / pickup — [GOBELISK-12](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-12)
 - ✅ Call waiting — [GOBELISK-13](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-13)
 - ✅ Do Not Disturb — [GOBELISK-14](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-14)
 - ✅ Call forwarding (unconditional/busy/no-answer) — [GOBELISK-15](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-15)
 - ❌ Paging / intercom — [GOBELISK-16](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-16)
 - ❌ Callback / DISA — [GOBELISK-17](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-17)
-- ❌ Feature codes — [GOBELISK-18](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-18)
+- ✅ Feature codes — [GOBELISK-18](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-18)
 
 ## Routing and dialplan
 
@@ -128,7 +128,7 @@ Gobelisk hosts a GPU-backed voice agent that joins a Pir² meeting over WebRTC o
 - ✅ User management
 - ✅ Dialplan management
 - 🟡 Status/health
-- ❌ Feature codes — [GOBELISK-18](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-18)
+- ✅ Feature codes — [GOBELISK-18](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-18)
 - ❌ Music on hold — [GOBELISK-56](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-56)
 - ❌ Announcements — [GOBELISK-57](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-57)
 - ❌ LDAP/AD integration — [GOBELISK-58](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-58)
