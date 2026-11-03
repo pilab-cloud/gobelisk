@@ -45,7 +45,7 @@ var statusCmd = &cobra.Command{
 			fmt.Println("error:", err)
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		resp, err := client.Status(withAuth(context.Background()), &gobeliskv1.StatusRequest{})
 		if err != nil {
 			fmt.Println("error:", err)
@@ -61,14 +61,14 @@ var usersCmd = &cobra.Command{
 }
 
 var usersListCmd = &cobra.Command{
-	Use:   "list",
+	Use: "list",
 	Run: func(cmd *cobra.Command, args []string) {
 		client, conn, err := dialRPC()
 		if err != nil {
 			fmt.Println("error:", err)
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		resp, err := client.ListUsers(withAuth(context.Background()), &gobeliskv1.ListUsersRequest{})
 		if err != nil {
 			fmt.Println("error:", err)
@@ -81,15 +81,15 @@ var usersListCmd = &cobra.Command{
 }
 
 var usersAddCmd = &cobra.Command{
-	Use:   "add <user> <password>",
-	Args:  cobra.ExactArgs(2),
+	Use:  "add <user> <password>",
+	Args: cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		client, conn, err := dialRPC()
 		if err != nil {
 			fmt.Println("error:", err)
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		resp, err := client.AddUser(withAuth(context.Background()), &gobeliskv1.AddUserRequest{User: args[0], Password: args[1]})
 		if err != nil {
 			fmt.Println("error:", err)
@@ -100,15 +100,15 @@ var usersAddCmd = &cobra.Command{
 }
 
 var usersRemoveCmd = &cobra.Command{
-	Use:   "remove <user>",
-	Args:  cobra.ExactArgs(1),
+	Use:  "remove <user>",
+	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		client, conn, err := dialRPC()
 		if err != nil {
 			fmt.Println("error:", err)
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		resp, err := client.RemoveUser(withAuth(context.Background()), &gobeliskv1.RemoveUserRequest{User: args[0]})
 		if err != nil {
 			fmt.Println("error:", err)
@@ -131,7 +131,7 @@ var configGetCmd = &cobra.Command{
 			fmt.Println("error:", err)
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		resp, err := client.GetConfig(withAuth(context.Background()), &gobeliskv1.GetConfigRequest{})
 		if err != nil {
 			fmt.Println("error:", err)
@@ -142,7 +142,7 @@ var configGetCmd = &cobra.Command{
 }
 
 var configSetCmd = &cobra.Command{
-	Use: "set <file>",
+	Use:  "set <file>",
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		data, err := os.ReadFile(args[0])
@@ -155,7 +155,7 @@ var configSetCmd = &cobra.Command{
 			fmt.Println("error:", err)
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		resp, err := client.SetConfig(withAuth(context.Background()), &gobeliskv1.SetConfigRequest{Yaml: string(data)})
 		if err != nil {
 			fmt.Println("error:", err)
@@ -173,7 +173,7 @@ var configReloadCmd = &cobra.Command{
 			fmt.Println("error:", err)
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		resp, err := client.ReloadConfig(withAuth(context.Background()), &gobeliskv1.ReloadConfigRequest{})
 		if err != nil {
 			fmt.Println("error:", err)
@@ -196,7 +196,7 @@ var dialplanGetCmd = &cobra.Command{
 			fmt.Println("error:", err)
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		resp, err := client.GetDialPlan(withAuth(context.Background()), &gobeliskv1.GetDialPlanRequest{})
 		if err != nil {
 			fmt.Println("error:", err)
@@ -207,7 +207,7 @@ var dialplanGetCmd = &cobra.Command{
 }
 
 var dialplanSetCmd = &cobra.Command{
-	Use: "set <file>",
+	Use:  "set <file>",
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		data, err := os.ReadFile(args[0])
@@ -220,7 +220,7 @@ var dialplanSetCmd = &cobra.Command{
 			fmt.Println("error:", err)
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		resp, err := client.SetDialPlan(withAuth(context.Background()), &gobeliskv1.SetDialPlanRequest{Text: string(data)})
 		if err != nil {
 			fmt.Println("error:", err)
@@ -243,7 +243,7 @@ var extensionsListCmd = &cobra.Command{
 			fmt.Println("error:", err)
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		resp, err := client.ListExtensions(withAuth(context.Background()), &gobeliskv1.ListExtensionsRequest{})
 		if err != nil {
 			fmt.Println("error:", err)
@@ -260,10 +260,16 @@ var extensionsGetCmd = &cobra.Command{
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		client, conn, err := dialRPC()
-		if err != nil { fmt.Println("error:", err); return }
-		defer conn.Close()
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
+		defer func() { _ = conn.Close() }()
 		resp, err := client.GetExtension(withAuth(context.Background()), &gobeliskv1.GetExtensionRequest{Extension: args[0]})
-		if err != nil { fmt.Println("error:", err); return }
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
 		fmt.Println(resp.Contact)
 	},
 }
@@ -273,10 +279,16 @@ var extensionsCreateCmd = &cobra.Command{
 	Args: cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		client, conn, err := dialRPC()
-		if err != nil { fmt.Println("error:", err); return }
-		defer conn.Close()
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
+		defer func() { _ = conn.Close() }()
 		resp, err := client.CreateExtension(withAuth(context.Background()), &gobeliskv1.CreateExtensionRequest{Extension: args[0], Contact: args[1]})
-		if err != nil { fmt.Println("error:", err); return }
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
 		fmt.Println(resp.Message)
 	},
 }
@@ -286,10 +298,16 @@ var extensionsUpdateCmd = &cobra.Command{
 	Args: cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		client, conn, err := dialRPC()
-		if err != nil { fmt.Println("error:", err); return }
-		defer conn.Close()
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
+		defer func() { _ = conn.Close() }()
 		resp, err := client.UpdateExtension(withAuth(context.Background()), &gobeliskv1.UpdateExtensionRequest{Extension: args[0], Contact: args[1]})
-		if err != nil { fmt.Println("error:", err); return }
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
 		fmt.Println(resp.Message)
 	},
 }
@@ -299,21 +317,35 @@ var roomsListCmd = &cobra.Command{
 	Use: "list",
 	Run: func(cmd *cobra.Command, args []string) {
 		client, conn, err := dialRPC()
-		if err != nil { fmt.Println("error:", err); return }
-		defer conn.Close()
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
+		defer func() { _ = conn.Close() }()
 		resp, err := client.ListRooms(withAuth(context.Background()), &gobeliskv1.ListRoomsRequest{})
-		if err != nil { fmt.Println("error:", err); return }
-		for _, r := range resp.Rooms { fmt.Println(r) }
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
+		for _, r := range resp.Rooms {
+			fmt.Println(r)
+		}
 	},
 }
 var roomsCreateCmd = &cobra.Command{
 	Use: "create <name>", Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		client, conn, err := dialRPC()
-		if err != nil { fmt.Println("error:", err); return }
-		defer conn.Close()
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
+		defer func() { _ = conn.Close() }()
 		resp, err := client.CreateRoom(withAuth(context.Background()), &gobeliskv1.CreateRoomRequest{Name: args[0]})
-		if err != nil { fmt.Println("error:", err); return }
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
 		fmt.Println(resp.Message)
 	},
 }
@@ -321,10 +353,16 @@ var roomsRemoveCmd = &cobra.Command{
 	Use: "remove <name>", Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		client, conn, err := dialRPC()
-		if err != nil { fmt.Println("error:", err); return }
-		defer conn.Close()
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
+		defer func() { _ = conn.Close() }()
 		resp, err := client.RemoveRoom(withAuth(context.Background()), &gobeliskv1.RemoveRoomRequest{Name: args[0]})
-		if err != nil { fmt.Println("error:", err); return }
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
 		fmt.Println(resp.Message)
 	},
 }
@@ -334,21 +372,35 @@ var meetingsListCmd = &cobra.Command{
 	Use: "list",
 	Run: func(cmd *cobra.Command, args []string) {
 		client, conn, err := dialRPC()
-		if err != nil { fmt.Println("error:", err); return }
-		defer conn.Close()
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
+		defer func() { _ = conn.Close() }()
 		resp, err := client.ListMeetings(withAuth(context.Background()), &gobeliskv1.ListMeetingsRequest{})
-		if err != nil { fmt.Println("error:", err); return }
-		for k, v := range resp.Meetings { fmt.Printf("%s: %s\n", k, v) }
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
+		for k, v := range resp.Meetings {
+			fmt.Printf("%s: %s\n", k, v)
+		}
 	},
 }
 var meetingsCreateCmd = &cobra.Command{
 	Use: "create <name> <extension>", Args: cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		client, conn, err := dialRPC()
-		if err != nil { fmt.Println("error:", err); return }
-		defer conn.Close()
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
+		defer func() { _ = conn.Close() }()
 		resp, err := client.CreateMeeting(withAuth(context.Background()), &gobeliskv1.CreateMeetingRequest{Name: args[0], Extension: args[1]})
-		if err != nil { fmt.Println("error:", err); return }
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
 		fmt.Println(resp.Message)
 	},
 }
@@ -356,10 +408,16 @@ var meetingsRemoveCmd = &cobra.Command{
 	Use: "remove <name>", Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		client, conn, err := dialRPC()
-		if err != nil { fmt.Println("error:", err); return }
-		defer conn.Close()
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
+		defer func() { _ = conn.Close() }()
 		resp, err := client.RemoveMeeting(withAuth(context.Background()), &gobeliskv1.RemoveMeetingRequest{Name: args[0]})
-		if err != nil { fmt.Println("error:", err); return }
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
 		fmt.Println(resp.Message)
 	},
 }
@@ -373,7 +431,7 @@ var extensionsRemoveCmd = &cobra.Command{
 			fmt.Println("error:", err)
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		resp, err := client.RemoveExtension(withAuth(context.Background()), &gobeliskv1.RemoveExtensionRequest{Extension: args[0]})
 		if err != nil {
 			fmt.Println("error:", err)
@@ -396,7 +454,7 @@ var callsListCmd = &cobra.Command{
 			fmt.Println("error:", err)
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		resp, err := client.ListCalls(withAuth(context.Background()), &gobeliskv1.ListCallsRequest{})
 		if err != nil {
 			fmt.Println("error:", err)
@@ -410,31 +468,47 @@ var callsListCmd = &cobra.Command{
 
 var voiceCmd = &cobra.Command{Use: "voice", Short: "voice tools"}
 var genPromptCmd = &cobra.Command{
-	Use: "generate <text> [voice] [output]",
+	Use:  "generate <text> [voice] [output]",
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		text := args[0]
 		voice := "anna"
 		out := "/tmp/prompt.wav"
-		if len(args) > 1 { voice = args[1] }
-		if len(args) > 2 { out = args[2] }
+		if len(args) > 1 {
+			voice = args[1]
+		}
+		if len(args) > 2 {
+			out = args[2]
+		}
 		client, conn, err := dialRPC()
-		if err != nil { fmt.Println("error:", err); return }
-		defer conn.Close()
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
+		defer func() { _ = conn.Close() }()
 		resp, err := client.GeneratePrompt(withAuth(context.Background()), &gobeliskv1.GeneratePromptRequest{Text: text, Voice: voice, OutputPath: out})
-		if err != nil { fmt.Println("error:", err); return }
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
 		fmt.Println("generated:", resp.Path)
 	},
 }
 var transcribeCmd = &cobra.Command{
-	Use: "transcribe <audio_path>",
+	Use:  "transcribe <audio_path>",
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		client, conn, err := dialRPC()
-		if err != nil { fmt.Println("error:", err); return }
-		defer conn.Close()
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
+		defer func() { _ = conn.Close() }()
 		resp, err := client.TranscribeAudio(withAuth(context.Background()), &gobeliskv1.TranscribeAudioRequest{AudioPath: args[0]})
-		if err != nil { fmt.Println("error:", err); return }
+		if err != nil {
+			fmt.Println("error:", err)
+			return
+		}
 		fmt.Println(resp.Text)
 	},
 }
@@ -455,4 +529,3 @@ func init() {
 	manageCmd.AddCommand(usersCmd, configCmd, dialplanCmd, callsCmd, extensionsCmd, roomsCmd, meetingsCmd, voiceCmd)
 	rootCmd.AddCommand(manageCmd)
 }
-

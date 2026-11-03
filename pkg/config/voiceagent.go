@@ -89,12 +89,12 @@ type VoiceAgentLLMConfig struct {
 // response may be WAV or raw s16le PCM. A command fallback (for example
 // piper) can be configured instead of an endpoint.
 type VoiceAgentTTSConfig struct {
-	Endpoint       string `yaml:"endpoint"`
-	APIKey         string `yaml:"api_key"`
-	Model          string `yaml:"model"`
-	ModelPath      string `yaml:"model_path"`
-	Voice          string `yaml:"voice"`
-	Format         string `yaml:"format"`
+	Endpoint  string `yaml:"endpoint"`
+	APIKey    string `yaml:"api_key"`
+	Model     string `yaml:"model"`
+	ModelPath string `yaml:"model_path"`
+	Voice     string `yaml:"voice"`
+	Format    string `yaml:"format"`
 	// SampleRate is used when Format is raw "pcm"; WAV carries its own rate.
 	SampleRate     int    `yaml:"sample_rate"`
 	Command        string `yaml:"command"`

@@ -37,7 +37,7 @@ type WebCallSession struct {
 	StartTime      time.Time       `json:"start_time"`
 	DTMFBuffer     string          `json:"dtmf_buffer"`
 	Transcript     []string        `json:"transcript"`
-	State          string          `json:"state"` // idle, connected, ended
+	State          string          `json:"state"`       // idle, connected, ended
 	AgentState     string          `json:"agent_state"` // standby, active
 	LastActiveTime time.Time       `json:"last_active_time"`
 	History        []OllamaMessage `json:"history"`
@@ -93,7 +93,6 @@ var (
 		CheckOrigin: func(r *http.Request) bool { return true },
 	}
 )
-
 
 var (
 	loadedConfig      *config.Config
@@ -424,7 +423,7 @@ var webCmd = &cobra.Command{
 			if minSpeechMS <= 0 {
 				minSpeechMS = 380
 			}
-			minSpeechFrames := int(math.Max(1, math.Ceil(float64(minSpeechMS) / 128.0)))
+			minSpeechFrames := int(math.Max(1, math.Ceil(float64(minSpeechMS)/128.0)))
 
 			maxSpeechMS := vadCfg.MaxSpeechMS
 			if maxSpeechMS <= 0 {

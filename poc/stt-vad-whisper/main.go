@@ -19,13 +19,13 @@ import (
 
 // Config holds configuration parameters for VAD and ASR
 type Config struct {
-	SampleRate        int     // 16000 Hz
-	FrameDurationMs   int     // 20 ms frames (320 samples per frame)
-	VadEnergyThresh   float64 // Energy RMS threshold for simple VAD (or silence detection)
-	SilenceTimeoutMs  int     // Silence duration to trigger endpointing (e.g. 400ms)
-	MinSpeechMs       int     // Minimum speech duration to bother transcribing (e.g. 300ms)
-	ASRServerURL      string  // Python faster-whisper backend endpoint
-	ListenAddr        string  // HTTP/WebSocket listen address
+	SampleRate       int     // 16000 Hz
+	FrameDurationMs  int     // 20 ms frames (320 samples per frame)
+	VadEnergyThresh  float64 // Energy RMS threshold for simple VAD (or silence detection)
+	SilenceTimeoutMs int     // Silence duration to trigger endpointing (e.g. 400ms)
+	MinSpeechMs      int     // Minimum speech duration to bother transcribing (e.g. 300ms)
+	ASRServerURL     string  // Python faster-whisper backend endpoint
+	ListenAddr       string  // HTTP/WebSocket listen address
 }
 
 // UtteranceResult represents the JSON response sent to IVR/client
@@ -46,13 +46,13 @@ const (
 
 // AudioBuffer handles frame ingestion, silence endpointing, and flushing
 type AudioBuffer struct {
-	mu             sync.Mutex
-	cfg            Config
-	state          VADState
-	speechBuffer   []byte
-	silenceFrames  int
-	speechFrames   int
-	onUtterance    func(audioPCM []byte, durationSec float64)
+	mu            sync.Mutex
+	cfg           Config
+	state         VADState
+	speechBuffer  []byte
+	silenceFrames int
+	speechFrames  int
+	onUtterance   func(audioPCM []byte, durationSec float64)
 }
 
 func NewAudioBuffer(cfg Config, onUtterance func(audioPCM []byte, durationSec float64)) *AudioBuffer {

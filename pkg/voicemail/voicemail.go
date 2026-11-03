@@ -12,11 +12,11 @@ import (
 
 // Message represents a voicemail.
 type Message struct {
-	ID          string
-	From        string
-	To          string
-	AudioPath   string
-	Transcript  string
+	ID         string
+	From       string
+	To         string
+	AudioPath  string
+	Transcript string
 }
 
 // Store stores voicemails on disk.
