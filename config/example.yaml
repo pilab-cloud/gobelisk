@@ -1,0 +1,34 @@
+# Gobelisk Configuration Example
+
+server:
+  sip:
+    udp:
+      enabled: true
+      port: 5060
+    tcp:
+      enabled: true
+      port: 5060
+    tls:
+      enabled: false
+      port: 5061
+      cert: /path/to/cert.pem
+      key: /path/to/key.pem
+  
+  rtp:
+    start_port: 10000
+    end_port: 20000
+  
+  management:
+    grpc:
+      enabled: true
+      port: 9090
+    http:
+      enabled: true
+      port: 8080
+
+dialplan:
+  default_context: default
+
+logging:
+  level: info
+  format: json

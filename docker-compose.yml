@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  gobelisk:
+    build: .
+    container_name: gobelisk
+    restart: unless-stopped
+    ports:
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+      - "5061:5061/tcp"
+      - "8080:8080/tcp"
+      - "9090:9090/tcp"
+      # RTP port range
+      - "10000-20000:10000-20000/udp"
+    volumes:
+      - ./config:/root/config
+      - ./data:/root/data
+    environment:
+      - TZ=UTC
+    command: ["server"]

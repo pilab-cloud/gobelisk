@@ -3,3 +3,33 @@ callee_*_messages.log
 caller_*_messages.log
 uas_*_messages.log
 .vscode/
+
+# Build artifacts
+gobelisk
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test coverage
+coverage.out
+coverage.html
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config
+config/*.yaml
+config/*.yml
+!config/example.yaml
+
+# Data
+data/

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Community Discussions
+    url: https://github.com/pilab-cloud/gobelisk/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: 📧 Email Support
+    url: mailto:gyula@pilab.hu
+    about: Contact the maintainers directly

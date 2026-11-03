@@ -1,5 +1,5 @@
 /*
-Copyright © 2024 Nev3r Kn0wn <nn0wn@proton.me>
+Copyright © 2024-2026 Made with <3 by Progressive Innovation LAB - Paal Gyula <gyula@pilab.hu>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
