@@ -82,6 +82,12 @@ type Server struct {
 	calls  map[string]*Call
 	callMu sync.Mutex
 
+	// pending in-dialog transactions (GOBELISK-10): server branch -> tx and
+	// dialog key -> branch, so responses are relayed to the right leg.
+	pendingMu       sync.Mutex
+	pendingByBranch map[string]*pendingTx
+	pendingByKey    map[string]string
+
 	msgCh  chan sipMsg
 	doneCh chan struct{}
 
@@ -114,7 +120,14 @@ type Call struct {
 	CalleeAddr *net.UDPAddr
 	MeetingID  string
 	SessionID  string
-	respCh     chan *sip.RawMessage
+
+	// Dialog identity (GOBELISK-10): tags and Contacts let in-dialog
+	// requests be matched to the leg that sent them, not just to the Call-ID.
+	CallerExt     string
+	CallerTag     string // From-tag of the caller (UAC)
+	CalleeTag     string // To-tag assigned by the callee (UAS)
+	CallerContact string
+	CalleeContact string
 
 	// Answered is true once the callee accepted the call (2xx). It marks the
 	// callee extension as busy for call-waiting purposes.
@@ -126,6 +139,18 @@ type Call struct {
 	branches map[string]*ringBranch // top Via branch -> forked INVITE target
 	ringCh   chan ringBranchResp
 	cancelCh chan struct{}
+
+	// holdOffer is an unanswered hold/resume offer; heldBy is the leg that
+	// currently holds the call (GOBELISK-10).
+	holdOffer *holdOffer
+	heldBy    string
+}
+
+// holdOffer is a hold/resume SDP offer that has been forwarded but not yet
+// answered by the far leg.
+type holdOffer struct {
+	Leg string // "caller" or "callee"
+	Dir string // sendonly / recvonly / inactive / sendrecv
 }
 
 // ringBranch is one forked INVITE in a ring group call.
@@ -271,13 +296,15 @@ func WithConfigPath(p string) ServerOpts {
 // NewServer creates a new Server.
 func NewServer(opts ...ServerOpts) *Server {
 	s := &Server{
-		host:      "127.0.0.1",
-		regs:      make(map[string]*Registration),
-		calls:     make(map[string]*Call),
-		ringState: ringgroup.NewState(),
-		msgCh:     make(chan sipMsg, 256),
-		doneCh:    make(chan struct{}, 1),
-		log:       zerolog.Nop(),
+		host:            "127.0.0.1",
+		regs:            make(map[string]*Registration),
+		calls:           make(map[string]*Call),
+		pendingByBranch: make(map[string]*pendingTx),
+		pendingByKey:    make(map[string]string),
+		ringState:       ringgroup.NewState(),
+		msgCh:           make(chan sipMsg, 256),
+		doneCh:          make(chan struct{}, 1),
+		log:             zerolog.Nop(),
 	}
 
 	for _, o := range opts {
@@ -931,7 +958,7 @@ func (s *Server) handleRequest(m sipMsg) {
 	case "PRACK":
 		m.respond(buildResponse(req, 200, "OK", nil, ""))
 	case "UPDATE":
-		m.respond(buildResponse(req, 200, "OK", nil, ""))
+		s.handleInDialogUpdate(m)
 	case "INFO":
 		s.handleInfo(m)
 	case "MESSAGE":
@@ -939,9 +966,9 @@ func (s *Server) handleRequest(m sipMsg) {
 	case "SUBSCRIBE":
 		m.respond(buildResponse(req, 202, "Accepted", nil, ""))
 	case "NOTIFY":
-		m.respond(buildResponse(req, 200, "OK", nil, ""))
+		s.handleNotify(m)
 	case "REFER":
-		m.respond(buildResponse(req, 202, "Accepted", nil, ""))
+		s.handleRefer(m)
 	default:
 		m.respond(buildResponse(req, 405, "Method Not Allowed", map[string]string{
 			"Allow": "INVITE, ACK, OPTIONS, BYE, CANCEL, REGISTER, PRACK, UPDATE, INFO, MESSAGE, SUBSCRIBE, NOTIFY, REFER",
@@ -1087,20 +1114,33 @@ func (s *Server) handleInvite(m sipMsg) {
 	req := m.msg
 	callerAddr := m.addr
 
-	// Re-INVITE / hold-resume for existing call: forward instead of re-routing
 	callID := getHeader(req, "Call-ID")
+
+	// In-dialog re-INVITE (hold/resume, codec change, session refresh):
+	// relay it to the opposite leg with its response path (GOBELISK-10).
 	if existing := s.getCall(callID); existing != nil {
-		// determine target
-		var targetAddr *net.UDPAddr
-		if callerAddr.String() == existing.CallerAddr.String() {
-			targetAddr = existing.CalleeAddr
-		} else {
-			targetAddr = existing.CallerAddr
+		if inDialog(req) {
+			s.forwardInDialog(m, existing, "INVITE")
+			return
 		}
-		branch := fmt.Sprintf("z9hG4bK%d", time.Now().UnixNano())
-		serverVia := fmt.Sprintf("SIP/2.0/UDP %s:%d;branch=%s", s.host, s.port, branch)
-		msg := buildRequest("INVITE", req.Target, req, map[string]string{"Via": serverVia}, req.Body)
-		s.sendRaw(targetAddr, msg)
+		// The original out-of-dialog INVITE retransmitted: absorb it through
+		// its pending transaction instead of routing the call a second time.
+		key := pendingKey(callID, "caller", cseqNumber(req), "INVITE")
+		if tx := s.lookupPendingKey(key); tx != nil {
+			if tx.lastResp != nil {
+				m.respond(s.relayedResponse(tx.lastResp, tx.orig))
+			} else {
+				m.respond(buildResponse(req, 100, "Trying", nil, ""))
+			}
+			return
+		}
+		// No transaction (mid no-answer switch or expired): still never
+		// route the same Call-ID twice.
+		m.respond(buildResponse(req, 100, "Trying", nil, ""))
+		return
+	} else if inDialog(req) {
+		// An in-dialog request for a call we do not know: wrong dialog.
+		m.respond(buildResponse(req, 481, "Call/Transaction Does Not Exist", nil, ""))
 		return
 	}
 
@@ -1109,104 +1149,128 @@ func (s *Server) handleInvite(m sipMsg) {
 		dialed = userFromURI(getHeader(req, "To"))
 	}
 
-	target := s.dialPlan.Parse(dialed)
-	s.log.Debug().Str("dialed", dialed).Str("targetType", string(target.Type)).Str("targetValue", target.Value).Msg("dialplan resolved")
+	fromHeader := getHeader(req, "From")
+	overall := time.After(60 * time.Second)
+	hops := 0
 
-	if target.Type == dialplan.TargetRingGroup {
-		s.handleRingGroupInvite(m, target.Value)
-		return
-	}
-
-	calleeExt := ""
-	resolvedExt, ok := s.dialPlan.ResolveExtension(target)
-	if !ok {
-		s.log.Debug().Str("dialed", dialed).Msg("no explicit dialplan route, treating as extension")
-		resolvedExt = dialed
-	}
-	calleeExt = resolvedExt
-
-	if target.Type == dialplan.TargetRoom {
-		s.rooms.Join(target.Value, dialed)
-	}
-	if target.Type == dialplan.TargetMenu {
-		// IVR entry point; routing to agent endpoint
-		s.log.Info().Str("menu", target.Value).Msg("entering IVR menu")
-	}
-
-	reg := s.getReg(calleeExt)
-	if reg == nil {
-		s.log.Warn().Str("callee", calleeExt).Msg("callee not registered")
-		m.respond(buildResponse(req, 404, "Not Found", nil, ""))
-		return
-	}
-
-	// Call waiting: an extension already in a call may still receive another
-	// one. Without it, reject the new call as busy.
-	callWaiting := false
-	if s.extBusy(calleeExt) {
-		if !s.callWaitingEnabled(calleeExt) {
-			s.log.Info().Str("callee", calleeExt).Msg("callee busy, call waiting disabled")
-			m.respond(buildResponse(req, 486, "Busy Here", nil, ""))
+	for {
+		// Route through dialplan + DND + call forwarding; resolveCallee
+		// sends the rejection responses itself (GOBELISK-14 / GOBELISK-15).
+		res, ok := s.resolveCallee(m, dialed, &hops)
+		if !ok {
 			return
 		}
-		callWaiting = true
-	}
+		if res.ringGroup != "" {
+			s.handleRingGroupInvite(m, res.ringGroup)
+			return
+		}
 
-	// 100 Trying
-	m.respond(buildResponse(req, 100, "Trying", nil, ""))
+		// 100 Trying (one per attempt, like a proxy forking serially)
+		m.respond(buildResponse(req, 100, "Trying", nil, ""))
 
-	call := &Call{
-		CallID:     callID,
-		CallerAddr: callerAddr,
-		CalleeExt:  calleeExt,
-		CalleeAddr: reg.Addr,
-
-		respCh: make(chan *sip.RawMessage, 32),
-	}
-	s.callMu.Lock()
-	s.calls[callID] = call
-	s.callMu.Unlock()
-
-	branch := fmt.Sprintf("z9hG4bK%d", time.Now().UnixNano())
-	serverVia := fmt.Sprintf("SIP/2.0/UDP %s:%d;branch=%s", s.host, s.port, branch)
-
-	reqURI := fmt.Sprintf("sip:%s@%s", calleeExt, reg.Addr.String())
-	extraHeaders := map[string]string{
-		"Via":     serverVia,
-		"Contact": fmt.Sprintf("<sip:server@%s:%d>", s.host, s.port),
-	}
-	if callWaiting {
-		// RFC 7462 call-waiting alert so the phone plays the special tone.
-		extraHeaders["Alert-Info"] = "<urn:alert:service:call-waiting>"
-	}
-
-	inviteMsg := buildRequest("INVITE", reqURI, req, extraHeaders, req.Body)
-
-	s.log.Info().Str("callID", callID).Str("callee", calleeExt).Msg("forwarding INVITE")
-	s.log.Debug().Msg(inviteMsg)
-	s.sendRaw(reg.Addr, inviteMsg)
-
-	// wait for callee responses
-	for {
-		select {
-		case resp := <-call.respCh:
-			// Mark the extension busy before the caller can learn the call was
-			// answered, so a second call sees it as busy immediately.
-			answered := resp.StatusCode >= 200 && resp.StatusCode < 300
-			if answered {
-				s.markAnswered(call)
+		// The first attempt creates the call; a no-answer forward retargets
+		// the existing record so the caller's dialog stays intact.
+		call := s.getCall(callID)
+		if call == nil {
+			call = &Call{
+				CallID:        callID,
+				CallerAddr:    callerAddr,
+				CalleeExt:     res.calleeExt,
+				CalleeAddr:    res.reg.Addr,
+				CallerExt:     userFromURI(fromHeader),
+				CallerTag:     tagOf(fromHeader),
+				CallerContact: getHeader(req, "Contact"),
 			}
-			fwd := buildResponseFromRaw(resp, req)
-			s.sendRaw(callerAddr, fwd)
+			s.callMu.Lock()
+			s.calls[callID] = call
+			s.callMu.Unlock()
+		} else {
+			call.CalleeExt = res.calleeExt
+			call.CalleeAddr = res.reg.Addr
+		}
+
+		branch := newBranch()
+		serverVia := fmt.Sprintf("SIP/2.0/UDP %s:%d;branch=%s", s.host, s.port, branch)
+
+		reqURI := fmt.Sprintf("sip:%s@%s", res.calleeExt, res.reg.Addr.String())
+		extraHeaders := map[string]string{
+			"Via":     serverVia,
+			"Contact": s.serverContact(),
+		}
+		// RFC 3891: Replaces may arrive as a URI parameter; convert it into a
+		// header for the next hop (GOBELISK-11).
+		if v := replacesParam(req.Target); v != "" && getHeader(req, "Replaces") == "" {
+			extraHeaders["Replaces"] = v
+		}
+		if res.callWaiting {
+			// RFC 7462 call-waiting alert so the phone plays the special tone.
+			extraHeaders["Alert-Info"] = "<urn:alert:service:call-waiting>"
+		}
+
+		inviteMsg := buildRequest("INVITE", reqURI, req, extraHeaders, req.Body)
+
+		// Register the transaction before sending so the callee's responses are
+		// relayed back to the caller with the right Via path (GOBELISK-10).
+		notify := make(chan *sip.RawMessage, 64)
+		s.registerPending(branch, &pendingTx{
+			key:     pendingKey(callID, "caller", cseqNumber(req), "INVITE"),
+			call:    call,
+			leg:     "caller",
+			orig:    req,
+			respond: m.respond,
+			notify:  notify,
+		})
+
+		s.log.Info().Str("callID", callID).Str("callee", res.calleeExt).Msg("forwarding INVITE")
+		s.log.Debug().Msg(inviteMsg)
+		s.sendRaw(res.reg.Addr, inviteMsg)
+
+		// Wait for the callee: an answer ends the setup, a configured
+		// no-answer timeout cancels this leg and rings the forward target.
+		var noAnswer <-chan time.Time
+		if d := res.fwd.NoAnswerTimer(); d > 0 {
+			noAnswer = time.After(d)
+		}
+		legTimer := time.After(legTimeout)
+
+		select {
+		case resp := <-notify:
 			if resp.StatusCode >= 200 {
-				if !answered {
+				if resp.StatusCode >= 300 {
 					s.removeCall(callID)
 				}
 				return
 			}
-		case <-time.After(30 * time.Second):
+		case <-noAnswer:
+			// An answer racing the timer wins (GOBELISK-15).
+			select {
+			case resp := <-notify:
+				if resp.StatusCode >= 200 {
+					if resp.StatusCode >= 300 {
+						s.removeCall(callID)
+					}
+					return
+				}
+			default:
+			}
+			s.log.Info().
+				Str("callID", callID).
+				Str("callee", res.calleeExt).
+				Str("to", res.fwd.NoAnswer).
+				Msg("no answer, forwarding")
+			s.cancelForwardedInvite(reqURI, res.reg.Addr, branch, req)
+			s.removePending(branch)
+			dialed = res.fwd.NoAnswer
+			hops++
+		case <-legTimer:
 			m.respond(buildResponse(req, 408, "Request Timeout", nil, ""))
 			s.removeCall(callID)
+			s.removePending(branch)
+			return
+		case <-overall:
+			m.respond(buildResponse(req, 408, "Request Timeout", nil, ""))
+			s.removeCall(callID)
+			s.removePending(branch)
 			return
 		}
 	}
@@ -1225,9 +1289,14 @@ func (s *Server) handleRingGroupInvite(m sipMsg, name string) {
 		return
 	}
 
-	// Only registered members that are not already in a call can ring.
+	// Only registered members that are not already in a call and without DND
+	// can ring (GOBELISK-14).
 	var members []*Registration
 	for _, ext := range group.Members {
+		if s.dndEnabled(ext) {
+			s.log.Debug().Str("ext", ext).Str("group", name).Msg("skipping DND ring group member")
+			continue
+		}
 		if s.extBusy(ext) {
 			s.log.Debug().Str("ext", ext).Str("group", name).Msg("skipping busy ring group member")
 			continue
@@ -1259,12 +1328,14 @@ func (s *Server) handleRingGroupInvite(m sipMsg, name string) {
 	m.respond(buildResponse(req, 100, "Trying", nil, ""))
 
 	call := &Call{
-		CallID:     callID,
-		CallerAddr: m.addr,
-		Group:      name,
-		respCh:     make(chan *sip.RawMessage, 32),
-		ringCh:     make(chan ringBranchResp, 256),
-		cancelCh:   make(chan struct{}),
+		CallID:        callID,
+		CallerAddr:    m.addr,
+		Group:         name,
+		CallerExt:     userFromURI(getHeader(req, "From")),
+		CallerTag:     tagOf(getHeader(req, "From")),
+		CallerContact: getHeader(req, "Contact"),
+		ringCh:        make(chan ringBranchResp, 256),
+		cancelCh:      make(chan struct{}),
 	}
 	s.callMu.Lock()
 	s.calls[callID] = call
@@ -1306,7 +1377,8 @@ func (s *Server) handleRingGroupInvite(m sipMsg, name string) {
 	s.ringState.MarkAnswered(name, winner.Ext)
 
 	s.log.Info().Str("callID", callID).Str("group", name).Str("callee", winner.Ext).Msg("ring group answered")
-	m.respond(buildResponseFromRaw(winnerResp, req))
+	call.setCalleeIdentity(getHeader(winnerResp, "To"), getHeader(winnerResp, "Contact"))
+	m.respond(s.relayedResponse(winnerResp, req))
 }
 
 // ringSimultaneous rings all members at once and returns the first to answer.
@@ -1453,14 +1525,27 @@ func (s *Server) handleAck(m sipMsg) {
 		s.log.Debug().Str("callID", callID).Msg("ACK for unknown call")
 		return
 	}
-	// forward to callee
-	branch := fmt.Sprintf("z9hG4bK%d", time.Now().UnixNano())
+	// Route by dialog leg: the UAC that sent the INVITE (re-INVITE included)
+	// sends the ACK, so it must reach the opposite leg (GOBELISK-10).
+	leg := call.legOf(m)
+	if leg == "" {
+		s.log.Debug().Str("callID", callID).Msg("ACK from unknown party")
+		return
+	}
+	other := call.otherAddr(leg)
+	if other == nil {
+		return
+	}
+	uri := call.remoteTarget(otherLeg(leg))
+	if uri == "" {
+		uri = req.Target
+	}
+	branch := newBranch()
 	serverVia := fmt.Sprintf("SIP/2.0/UDP %s:%d;branch=%s", s.host, s.port, branch)
-	uri := fmt.Sprintf("sip:%s@%s", call.CalleeExt, call.CalleeAddr.String())
 	msg := buildRequest("ACK", uri, req, map[string]string{
 		"Via": serverVia,
 	}, "")
-	s.sendRaw(call.CalleeAddr, msg)
+	s.sendRaw(other, msg)
 }
 
 func (s *Server) handleBye(m sipMsg) {
@@ -1470,7 +1555,6 @@ func (s *Server) handleBye(m sipMsg) {
 	// respond 200 to sender
 	m.respond(buildResponse(req, 200, "OK", nil, ""))
 
-	target := m.addr
 	if call != nil {
 		// Still ringing a group: stop the forks instead of forwarding.
 		if call.CalleeAddr == nil {
@@ -1479,20 +1563,33 @@ func (s *Server) handleBye(m sipMsg) {
 			s.removeCall(callID)
 			return
 		}
-		// forward to other party
+		// Forward to the other party; the dialog tags identify the sender,
+		// the source address is the fallback (GOBELISK-10).
+		leg := call.legOf(m)
 		var other *net.UDPAddr
-		if m.addr.String() == call.CallerAddr.String() {
-			other = call.CalleeAddr
-		} else {
-			other = call.CallerAddr
+		var targetLeg string
+		switch leg {
+		case "caller":
+			other, targetLeg = call.CalleeAddr, "callee"
+		case "callee":
+			other, targetLeg = call.CallerAddr, "caller"
+		default:
+			if m.addr.String() == call.CallerAddr.String() {
+				other, targetLeg = call.CalleeAddr, "callee"
+			} else {
+				other, targetLeg = call.CallerAddr, "caller"
+			}
 		}
 		if other != nil {
-			branch := fmt.Sprintf("z9hG4bK%d", time.Now().UnixNano())
-			serverVia := fmt.Sprintf("SIP/2.0/UDP %s:%d;branch=%s", s.host, s.port, branch)
-			uri := req.Target
+			uri := call.remoteTarget(targetLeg)
+			if uri == "" {
+				uri = req.Target
+			}
 			if uri == "" {
 				uri = getHeader(req, "Request-URI")
 			}
+			branch := newBranch()
+			serverVia := fmt.Sprintf("SIP/2.0/UDP %s:%d;branch=%s", s.host, s.port, branch)
 			msg := buildRequest("BYE", uri, req, map[string]string{
 				"Via": serverVia,
 			}, "")
@@ -1500,7 +1597,6 @@ func (s *Server) handleBye(m sipMsg) {
 		}
 		s.removeCall(callID)
 	}
-	_ = target
 }
 
 func (s *Server) handleCancel(m sipMsg) {
@@ -1535,6 +1631,14 @@ func (s *Server) handleCancel(m sipMsg) {
 
 func (s *Server) routeResponse(m sipMsg) {
 	resp := m.msg
+
+	// Responses to requests we forwarded (initial INVITE, re-INVITE, UPDATE)
+	// go back to the leg that asked for them (GOBELISK-10).
+	if tx := s.lookupPendingBranch(topViaBranch(getHeader(resp, "Via"))); tx != nil {
+		s.relayPending(tx, resp)
+		return
+	}
+
 	callID := getHeader(resp, "Call-ID")
 	call := s.getCall(callID)
 	if call == nil {
@@ -1552,7 +1656,7 @@ func (s *Server) routeResponse(m sipMsg) {
 		return
 	}
 
-	call.respCh <- resp
+	s.log.Debug().Str("callID", callID).Int("code", resp.StatusCode).Msg("response with no pending transaction")
 }
 
 // ---- helpers ----
@@ -1746,7 +1850,10 @@ func buildResponse(req *sip.RawMessage, code int, reason string, extra map[strin
 	return b.String()
 }
 
-func buildResponseFromRaw(resp *sip.RawMessage, req *sip.RawMessage) string {
+// buildResponseFromRaw relays resp to the sender of req, rebuilding the Via
+// path from req. contactOverride, when non-empty and resp is a 2xx, replaces
+// the Contact so both dialog legs keep addressing this server (GOBELISK-10).
+func buildResponseFromRaw(resp *sip.RawMessage, req *sip.RawMessage, contactOverride string) string {
 	code := resp.StatusCode
 	reason := resp.StatusDesc
 	body := resp.Body
@@ -1782,7 +1889,9 @@ func buildResponseFromRaw(resp *sip.RawMessage, req *sip.RawMessage) string {
 	}
 	fmt.Fprintf(&b, "CSeq: %s\r\n", cseq)
 
-	if v := getHeader(resp, "Contact"); v != "" {
+	if contactOverride != "" && code >= 200 && code < 300 {
+		fmt.Fprintf(&b, "Contact: %s\r\n", contactOverride)
+	} else if v := getHeader(resp, "Contact"); v != "" {
 		fmt.Fprintf(&b, "Contact: %s\r\n", v)
 	}
 	if v := getHeader(resp, "Record-Route"); v != "" {
@@ -1866,8 +1975,25 @@ func buildRequest(method, uri string, orig *sip.RawMessage, overrides map[string
 		fmt.Fprintf(&b, "%s: %s\r\n", k, v)
 	}
 
+	// End-to-end headers that must survive forwarding: transfers (RFC 5589 /
+	// 3891), event packages (NOTIFY) and extension negotiation (GOBELISK-11).
+	for _, name := range []string{"Refer-To", "Referred-By", "Replaces", "Event",
+		"Subscription-State", "Allow-Events", "Require"} {
+		if _, ok := overrides[name]; ok {
+			continue
+		}
+		if v := getHeader(orig, name); v != "" {
+			fmt.Fprintf(&b, "%s: %s\r\n", name, v)
+		}
+	}
+
 	if body != "" {
-		fmt.Fprintf(&b, "Content-Type: application/sdp\r\n")
+		if ct := getHeader(orig, "Content-Type"); ct != "" {
+			// Carry the original content type (application/sipfrag, text/plain...)
+			fmt.Fprintf(&b, "Content-Type: %s\r\n", ct)
+		} else {
+			fmt.Fprintf(&b, "Content-Type: application/sdp\r\n")
+		}
 	}
 	fmt.Fprintf(&b, "Content-Length: %d\r\n", len(body))
 	b.WriteString("\r\n")

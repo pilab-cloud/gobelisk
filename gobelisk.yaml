@@ -15,6 +15,25 @@ auth:
 features:
   call_waiting: true
   ring_timeout_seconds: 20
+  # Hold/resume policy (GOBELISK-10): reject hold offers (a=sendonly/recvonly/
+  # inactive) with 403 when disabled; per-extension overrides win.
+  hold:
+    enabled: true
+    per_extension: {}
+  # Do Not Disturb (GOBELISK-14): incoming calls to these extensions are
+  # rejected with 603 Declined and ring groups skip them.
+  dnd_extensions: []
+  # Call forwarding (GOBELISK-15), per extension:
+  #   unconditional: every call goes to the target (CFU)
+  #   busy: used instead of 486 when busy and call waiting is off (CFB)
+  #   no_answer + no_answer_seconds: after N seconds of ringing (CFNA)
+  call_forward: {}
+  #  call_forward:
+  #    "201":
+  #      unconditional: "100"
+  #      busy: "102"
+  #      no_answer: "105"
+  #      no_answer_seconds: 20
 
 # Local AI Voice Customer Service Stack (100% Local Inference on Quadro T2000 GPU)
 voice_agent:

@@ -39,7 +39,60 @@ type FeatureConfig struct {
 	// next member is tried (sequential strategies) or the call gives up
 	// (simultaneous). Defaults to 20.
 	RingTimeoutSeconds int `yaml:"ring_timeout_seconds"`
+	// Hold is the hold/resume policy (GOBELISK-10).
+	Hold HoldConfig `yaml:"hold"`
+	// DNDExtensions lists extensions with Do Not Disturb enabled; incoming
+	// calls to them are rejected with 603 Declined (GOBELISK-14).
+	DNDExtensions []string `yaml:"dnd_extensions"`
+	// CallForward holds per-extension forwarding rules (GOBELISK-15).
+	CallForward map[string]ForwardConfig `yaml:"call_forward"`
 }
+
+// ForwardConfig is call forwarding for one extension: all three targets are
+// optional dialable numbers (extensions or dialplan destinations).
+type ForwardConfig struct {
+	// Unconditional (CFU): every call goes straight to the target; the
+	// extension is never rung, registered or not.
+	Unconditional string `yaml:"unconditional"`
+	// Busy (CFB): used instead of 486 when the extension is in a call and
+	// call waiting is off.
+	Busy string `yaml:"busy"`
+	// NoAnswer (CFNA): used when the extension does not pick up within
+	// NoAnswerSeconds; the ringing leg is cancelled first.
+	NoAnswer string `yaml:"no_answer"`
+	// NoAnswerSeconds is the ring time before the no-answer forward.
+	// 0 (default) disables the no-answer target.
+	NoAnswerSeconds int `yaml:"no_answer_seconds"`
+}
+
+// NoAnswerTimer returns how long the extension may ring before the
+// no-answer forward kicks in, or 0 when it is not configured.
+func (f ForwardConfig) NoAnswerTimer() time.Duration {
+	if f.NoAnswer == "" || f.NoAnswerSeconds <= 0 {
+		return 0
+	}
+	return time.Duration(f.NoAnswerSeconds) * time.Second
+}
+
+// HoldConfig is the hold/resume policy. A nil Enabled means "default on", so
+// a zero-value config (or a YAML file without a hold section) keeps hold
+// working.
+type HoldConfig struct {
+	// Enabled is the master switch. When false, a re-INVITE or UPDATE that
+	// offers a held media stream (a=sendonly / a=recvonly / a=inactive) is
+	// rejected with 403 Forbidden. Session refreshes and codec renegotiation
+	// are unaffected.
+	Enabled *bool `yaml:"enabled"`
+	// PerExtension overrides Enabled for single extensions, keyed by
+	// extension number. The extension placing the call on hold decides.
+	PerExtension map[string]bool `yaml:"per_extension"`
+}
+
+// Bool returns a pointer to v, for building config values in Go.
+func Bool(v bool) *bool { return &v }
+
+// enabled returns the effective master switch (default: on).
+func (h HoldConfig) enabled() bool { return h.Enabled == nil || *h.Enabled }
 
 type Config struct {
 	Server            ServerConfig     `yaml:"server"`
@@ -71,6 +124,39 @@ func (c *Config) CallWaitingEnabled(ext string) bool {
 	return c.Features.CallWaiting
 }
 
+// HoldEnabled reports whether an extension may place a call on hold
+// (GOBELISK-10). Defaults to true.
+func (c *Config) HoldEnabled(ext string) bool {
+	if c == nil {
+		return true
+	}
+	if v, ok := c.Features.Hold.PerExtension[ext]; ok {
+		return v
+	}
+	return c.Features.Hold.enabled()
+}
+
+// DNDEnabled reports whether an extension has Do Not Disturb on (GOBELISK-14).
+func (c *Config) DNDEnabled(ext string) bool {
+	if c == nil {
+		return false
+	}
+	for _, e := range c.Features.DNDExtensions {
+		if e == ext {
+			return true
+		}
+	}
+	return false
+}
+
+// Forward returns the call-forwarding rules of an extension (GOBELISK-15).
+func (c *Config) Forward(ext string) ForwardConfig {
+	if c == nil {
+		return ForwardConfig{}
+	}
+	return c.Features.CallForward[ext]
+}
+
 func Default() *Config {
 	return &Config{
 		Server: ServerConfig{
@@ -90,6 +176,12 @@ func Default() *Config {
 			CallWaiting:           true,
 			CallWaitingExtensions: map[string]bool{},
 			RingTimeoutSeconds:    20,
+			Hold: HoldConfig{
+				Enabled:      Bool(true),
+				PerExtension: map[string]bool{},
+			},
+			DNDExtensions: []string{},
+			CallForward:   map[string]ForwardConfig{},
 		},
 		VoiceAgent: func() VoiceAgentConfig {
 			va := VoiceAgentConfig{}
