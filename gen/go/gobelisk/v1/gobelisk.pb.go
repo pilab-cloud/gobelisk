@@ -1605,6 +1605,534 @@ func (x *UpdateExtensionResponse) GetMessage() string {
 	return ""
 }
 
+// Trunk is a provisioned SIP/PSTN/IAX trunk with its live registration
+// status (GOBELISK-24 / GOBELISK-25).
+type Trunk struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Name            string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Type            string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"` // sip | pstn | iax
+	Host            string                 `protobuf:"bytes,3,opt,name=host,proto3" json:"host,omitempty"`
+	Port            int32                  `protobuf:"varint,4,opt,name=port,proto3" json:"port,omitempty"`
+	Transport       string                 `protobuf:"bytes,5,opt,name=transport,proto3" json:"transport,omitempty"`
+	Username        string                 `protobuf:"bytes,6,opt,name=username,proto3" json:"username,omitempty"`
+	Password        string                 `protobuf:"bytes,7,opt,name=password,proto3" json:"password,omitempty"` // write-only: never returned by ListTrunks
+	FromDomain      string                 `protobuf:"bytes,8,opt,name=from_domain,json=fromDomain,proto3" json:"from_domain,omitempty"`
+	Callerid        string                 `protobuf:"bytes,9,opt,name=callerid,proto3" json:"callerid,omitempty"`
+	Enabled         bool                   `protobuf:"varint,10,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	RegisterExpires int32                  `protobuf:"varint,11,opt,name=register_expires,json=registerExpires,proto3" json:"register_expires,omitempty"`
+	Context         string                 `protobuf:"bytes,12,opt,name=context,proto3" json:"context,omitempty"`
+	// Runtime status (GOBELISK-25):
+	// disabled | registering | registered | unhealthy | unsupported
+	State               string `protobuf:"bytes,13,opt,name=state,proto3" json:"state,omitempty"`
+	ExpiresUnix         int64  `protobuf:"varint,14,opt,name=expires_unix,json=expiresUnix,proto3" json:"expires_unix,omitempty"`
+	LastRegisterUnix    int64  `protobuf:"varint,15,opt,name=last_register_unix,json=lastRegisterUnix,proto3" json:"last_register_unix,omitempty"`
+	ConsecutiveFailures int32  `protobuf:"varint,16,opt,name=consecutive_failures,json=consecutiveFailures,proto3" json:"consecutive_failures,omitempty"`
+	LastError           string `protobuf:"bytes,17,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
+	Alert               string `protobuf:"bytes,18,opt,name=alert,proto3" json:"alert,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *Trunk) Reset() {
+	*x = Trunk{}
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Trunk) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Trunk) ProtoMessage() {}
+
+func (x *Trunk) ProtoReflect() protoreflect.Message {
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Trunk.ProtoReflect.Descriptor instead.
+func (*Trunk) Descriptor() ([]byte, []int) {
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *Trunk) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Trunk) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *Trunk) GetHost() string {
+	if x != nil {
+		return x.Host
+	}
+	return ""
+}
+
+func (x *Trunk) GetPort() int32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *Trunk) GetTransport() string {
+	if x != nil {
+		return x.Transport
+	}
+	return ""
+}
+
+func (x *Trunk) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *Trunk) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+func (x *Trunk) GetFromDomain() string {
+	if x != nil {
+		return x.FromDomain
+	}
+	return ""
+}
+
+func (x *Trunk) GetCallerid() string {
+	if x != nil {
+		return x.Callerid
+	}
+	return ""
+}
+
+func (x *Trunk) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *Trunk) GetRegisterExpires() int32 {
+	if x != nil {
+		return x.RegisterExpires
+	}
+	return 0
+}
+
+func (x *Trunk) GetContext() string {
+	if x != nil {
+		return x.Context
+	}
+	return ""
+}
+
+func (x *Trunk) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *Trunk) GetExpiresUnix() int64 {
+	if x != nil {
+		return x.ExpiresUnix
+	}
+	return 0
+}
+
+func (x *Trunk) GetLastRegisterUnix() int64 {
+	if x != nil {
+		return x.LastRegisterUnix
+	}
+	return 0
+}
+
+func (x *Trunk) GetConsecutiveFailures() int32 {
+	if x != nil {
+		return x.ConsecutiveFailures
+	}
+	return 0
+}
+
+func (x *Trunk) GetLastError() string {
+	if x != nil {
+		return x.LastError
+	}
+	return ""
+}
+
+func (x *Trunk) GetAlert() string {
+	if x != nil {
+		return x.Alert
+	}
+	return ""
+}
+
+type ListTrunksRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListTrunksRequest) Reset() {
+	*x = ListTrunksRequest{}
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListTrunksRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListTrunksRequest) ProtoMessage() {}
+
+func (x *ListTrunksRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListTrunksRequest.ProtoReflect.Descriptor instead.
+func (*ListTrunksRequest) Descriptor() ([]byte, []int) {
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{37}
+}
+
+type ListTrunksResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Trunks        []*Trunk               `protobuf:"bytes,1,rep,name=trunks,proto3" json:"trunks,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListTrunksResponse) Reset() {
+	*x = ListTrunksResponse{}
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListTrunksResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListTrunksResponse) ProtoMessage() {}
+
+func (x *ListTrunksResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListTrunksResponse.ProtoReflect.Descriptor instead.
+func (*ListTrunksResponse) Descriptor() ([]byte, []int) {
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *ListTrunksResponse) GetTrunks() []*Trunk {
+	if x != nil {
+		return x.Trunks
+	}
+	return nil
+}
+
+type CreateTrunkRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Trunk         *Trunk                 `protobuf:"bytes,1,opt,name=trunk,proto3" json:"trunk,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateTrunkRequest) Reset() {
+	*x = CreateTrunkRequest{}
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateTrunkRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateTrunkRequest) ProtoMessage() {}
+
+func (x *CreateTrunkRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateTrunkRequest.ProtoReflect.Descriptor instead.
+func (*CreateTrunkRequest) Descriptor() ([]byte, []int) {
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *CreateTrunkRequest) GetTrunk() *Trunk {
+	if x != nil {
+		return x.Trunk
+	}
+	return nil
+}
+
+type CreateTrunkResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateTrunkResponse) Reset() {
+	*x = CreateTrunkResponse{}
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateTrunkResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateTrunkResponse) ProtoMessage() {}
+
+func (x *CreateTrunkResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateTrunkResponse.ProtoReflect.Descriptor instead.
+func (*CreateTrunkResponse) Descriptor() ([]byte, []int) {
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *CreateTrunkResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type UpdateTrunkRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Trunk         *Trunk                 `protobuf:"bytes,1,opt,name=trunk,proto3" json:"trunk,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateTrunkRequest) Reset() {
+	*x = UpdateTrunkRequest{}
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateTrunkRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateTrunkRequest) ProtoMessage() {}
+
+func (x *UpdateTrunkRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateTrunkRequest.ProtoReflect.Descriptor instead.
+func (*UpdateTrunkRequest) Descriptor() ([]byte, []int) {
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *UpdateTrunkRequest) GetTrunk() *Trunk {
+	if x != nil {
+		return x.Trunk
+	}
+	return nil
+}
+
+type UpdateTrunkResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateTrunkResponse) Reset() {
+	*x = UpdateTrunkResponse{}
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateTrunkResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateTrunkResponse) ProtoMessage() {}
+
+func (x *UpdateTrunkResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateTrunkResponse.ProtoReflect.Descriptor instead.
+func (*UpdateTrunkResponse) Descriptor() ([]byte, []int) {
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *UpdateTrunkResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type RemoveTrunkRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveTrunkRequest) Reset() {
+	*x = RemoveTrunkRequest{}
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveTrunkRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveTrunkRequest) ProtoMessage() {}
+
+func (x *RemoveTrunkRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveTrunkRequest.ProtoReflect.Descriptor instead.
+func (*RemoveTrunkRequest) Descriptor() ([]byte, []int) {
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *RemoveTrunkRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type RemoveTrunkResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveTrunkResponse) Reset() {
+	*x = RemoveTrunkResponse{}
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveTrunkResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveTrunkResponse) ProtoMessage() {}
+
+func (x *RemoveTrunkResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveTrunkResponse.ProtoReflect.Descriptor instead.
+func (*RemoveTrunkResponse) Descriptor() ([]byte, []int) {
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *RemoveTrunkResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 type ListRoomsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1613,7 +2141,7 @@ type ListRoomsRequest struct {
 
 func (x *ListRoomsRequest) Reset() {
 	*x = ListRoomsRequest{}
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[36]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1625,7 +2153,7 @@ func (x *ListRoomsRequest) String() string {
 func (*ListRoomsRequest) ProtoMessage() {}
 
 func (x *ListRoomsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[36]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1638,7 +2166,7 @@ func (x *ListRoomsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRoomsRequest.ProtoReflect.Descriptor instead.
 func (*ListRoomsRequest) Descriptor() ([]byte, []int) {
-	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{36}
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{45}
 }
 
 type ListRoomsResponse struct {
@@ -1650,7 +2178,7 @@ type ListRoomsResponse struct {
 
 func (x *ListRoomsResponse) Reset() {
 	*x = ListRoomsResponse{}
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[37]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1662,7 +2190,7 @@ func (x *ListRoomsResponse) String() string {
 func (*ListRoomsResponse) ProtoMessage() {}
 
 func (x *ListRoomsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[37]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1675,7 +2203,7 @@ func (x *ListRoomsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRoomsResponse.ProtoReflect.Descriptor instead.
 func (*ListRoomsResponse) Descriptor() ([]byte, []int) {
-	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{37}
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *ListRoomsResponse) GetRooms() []string {
@@ -1694,7 +2222,7 @@ type CreateRoomRequest struct {
 
 func (x *CreateRoomRequest) Reset() {
 	*x = CreateRoomRequest{}
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[38]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1706,7 +2234,7 @@ func (x *CreateRoomRequest) String() string {
 func (*CreateRoomRequest) ProtoMessage() {}
 
 func (x *CreateRoomRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[38]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1719,7 +2247,7 @@ func (x *CreateRoomRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateRoomRequest.ProtoReflect.Descriptor instead.
 func (*CreateRoomRequest) Descriptor() ([]byte, []int) {
-	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{38}
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *CreateRoomRequest) GetName() string {
@@ -1738,7 +2266,7 @@ type CreateRoomResponse struct {
 
 func (x *CreateRoomResponse) Reset() {
 	*x = CreateRoomResponse{}
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[39]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1750,7 +2278,7 @@ func (x *CreateRoomResponse) String() string {
 func (*CreateRoomResponse) ProtoMessage() {}
 
 func (x *CreateRoomResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[39]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1763,7 +2291,7 @@ func (x *CreateRoomResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateRoomResponse.ProtoReflect.Descriptor instead.
 func (*CreateRoomResponse) Descriptor() ([]byte, []int) {
-	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{39}
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *CreateRoomResponse) GetMessage() string {
@@ -1782,7 +2310,7 @@ type RemoveRoomRequest struct {
 
 func (x *RemoveRoomRequest) Reset() {
 	*x = RemoveRoomRequest{}
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[40]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1794,7 +2322,7 @@ func (x *RemoveRoomRequest) String() string {
 func (*RemoveRoomRequest) ProtoMessage() {}
 
 func (x *RemoveRoomRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[40]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1807,7 +2335,7 @@ func (x *RemoveRoomRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveRoomRequest.ProtoReflect.Descriptor instead.
 func (*RemoveRoomRequest) Descriptor() ([]byte, []int) {
-	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{40}
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *RemoveRoomRequest) GetName() string {
@@ -1826,7 +2354,7 @@ type RemoveRoomResponse struct {
 
 func (x *RemoveRoomResponse) Reset() {
 	*x = RemoveRoomResponse{}
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[41]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1838,7 +2366,7 @@ func (x *RemoveRoomResponse) String() string {
 func (*RemoveRoomResponse) ProtoMessage() {}
 
 func (x *RemoveRoomResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[41]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1851,7 +2379,7 @@ func (x *RemoveRoomResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveRoomResponse.ProtoReflect.Descriptor instead.
 func (*RemoveRoomResponse) Descriptor() ([]byte, []int) {
-	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{41}
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *RemoveRoomResponse) GetMessage() string {
@@ -1869,7 +2397,7 @@ type ListMeetingsRequest struct {
 
 func (x *ListMeetingsRequest) Reset() {
 	*x = ListMeetingsRequest{}
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[42]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1881,7 +2409,7 @@ func (x *ListMeetingsRequest) String() string {
 func (*ListMeetingsRequest) ProtoMessage() {}
 
 func (x *ListMeetingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[42]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1894,7 +2422,7 @@ func (x *ListMeetingsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMeetingsRequest.ProtoReflect.Descriptor instead.
 func (*ListMeetingsRequest) Descriptor() ([]byte, []int) {
-	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{42}
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{51}
 }
 
 type ListMeetingsResponse struct {
@@ -1906,7 +2434,7 @@ type ListMeetingsResponse struct {
 
 func (x *ListMeetingsResponse) Reset() {
 	*x = ListMeetingsResponse{}
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[43]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1918,7 +2446,7 @@ func (x *ListMeetingsResponse) String() string {
 func (*ListMeetingsResponse) ProtoMessage() {}
 
 func (x *ListMeetingsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[43]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1931,7 +2459,7 @@ func (x *ListMeetingsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMeetingsResponse.ProtoReflect.Descriptor instead.
 func (*ListMeetingsResponse) Descriptor() ([]byte, []int) {
-	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{43}
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *ListMeetingsResponse) GetMeetings() map[string]string {
@@ -1951,7 +2479,7 @@ type CreateMeetingRequest struct {
 
 func (x *CreateMeetingRequest) Reset() {
 	*x = CreateMeetingRequest{}
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[44]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1963,7 +2491,7 @@ func (x *CreateMeetingRequest) String() string {
 func (*CreateMeetingRequest) ProtoMessage() {}
 
 func (x *CreateMeetingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[44]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1976,7 +2504,7 @@ func (x *CreateMeetingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateMeetingRequest.ProtoReflect.Descriptor instead.
 func (*CreateMeetingRequest) Descriptor() ([]byte, []int) {
-	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{44}
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *CreateMeetingRequest) GetName() string {
@@ -2002,7 +2530,7 @@ type CreateMeetingResponse struct {
 
 func (x *CreateMeetingResponse) Reset() {
 	*x = CreateMeetingResponse{}
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[45]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2014,7 +2542,7 @@ func (x *CreateMeetingResponse) String() string {
 func (*CreateMeetingResponse) ProtoMessage() {}
 
 func (x *CreateMeetingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[45]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2027,7 +2555,7 @@ func (x *CreateMeetingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateMeetingResponse.ProtoReflect.Descriptor instead.
 func (*CreateMeetingResponse) Descriptor() ([]byte, []int) {
-	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{45}
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *CreateMeetingResponse) GetMessage() string {
@@ -2046,7 +2574,7 @@ type RemoveMeetingRequest struct {
 
 func (x *RemoveMeetingRequest) Reset() {
 	*x = RemoveMeetingRequest{}
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[46]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2058,7 +2586,7 @@ func (x *RemoveMeetingRequest) String() string {
 func (*RemoveMeetingRequest) ProtoMessage() {}
 
 func (x *RemoveMeetingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[46]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2071,7 +2599,7 @@ func (x *RemoveMeetingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveMeetingRequest.ProtoReflect.Descriptor instead.
 func (*RemoveMeetingRequest) Descriptor() ([]byte, []int) {
-	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{46}
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *RemoveMeetingRequest) GetName() string {
@@ -2090,7 +2618,7 @@ type RemoveMeetingResponse struct {
 
 func (x *RemoveMeetingResponse) Reset() {
 	*x = RemoveMeetingResponse{}
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[47]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2102,7 +2630,7 @@ func (x *RemoveMeetingResponse) String() string {
 func (*RemoveMeetingResponse) ProtoMessage() {}
 
 func (x *RemoveMeetingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[47]
+	mi := &file_gobelisk_v1_gobelisk_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2115,7 +2643,7 @@ func (x *RemoveMeetingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveMeetingResponse.ProtoReflect.Descriptor instead.
 func (*RemoveMeetingResponse) Descriptor() ([]byte, []int) {
-	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{47}
+	return file_gobelisk_v1_gobelisk_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *RemoveMeetingResponse) GetMessage() string {
@@ -2212,6 +2740,43 @@ const file_gobelisk_v1_gobelisk_proto_rawDesc = "" +
 	"\textension\x18\x01 \x01(\tR\textension\x12\x18\n" +
 	"\acontact\x18\x02 \x01(\tR\acontact\"3\n" +
 	"\x17UpdateExtensionResponse\x12\x18\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"\x98\x04\n" +
+	"\x05Trunk\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\x12\x12\n" +
+	"\x04host\x18\x03 \x01(\tR\x04host\x12\x12\n" +
+	"\x04port\x18\x04 \x01(\x05R\x04port\x12\x1c\n" +
+	"\ttransport\x18\x05 \x01(\tR\ttransport\x12\x1a\n" +
+	"\busername\x18\x06 \x01(\tR\busername\x12\x1a\n" +
+	"\bpassword\x18\a \x01(\tR\bpassword\x12\x1f\n" +
+	"\vfrom_domain\x18\b \x01(\tR\n" +
+	"fromDomain\x12\x1a\n" +
+	"\bcallerid\x18\t \x01(\tR\bcallerid\x12\x18\n" +
+	"\aenabled\x18\n" +
+	" \x01(\bR\aenabled\x12)\n" +
+	"\x10register_expires\x18\v \x01(\x05R\x0fregisterExpires\x12\x18\n" +
+	"\acontext\x18\f \x01(\tR\acontext\x12\x14\n" +
+	"\x05state\x18\r \x01(\tR\x05state\x12!\n" +
+	"\fexpires_unix\x18\x0e \x01(\x03R\vexpiresUnix\x12,\n" +
+	"\x12last_register_unix\x18\x0f \x01(\x03R\x10lastRegisterUnix\x121\n" +
+	"\x14consecutive_failures\x18\x10 \x01(\x05R\x13consecutiveFailures\x12\x1d\n" +
+	"\n" +
+	"last_error\x18\x11 \x01(\tR\tlastError\x12\x14\n" +
+	"\x05alert\x18\x12 \x01(\tR\x05alert\"\x13\n" +
+	"\x11ListTrunksRequest\"@\n" +
+	"\x12ListTrunksResponse\x12*\n" +
+	"\x06trunks\x18\x01 \x03(\v2\x12.gobelisk.v1.TrunkR\x06trunks\">\n" +
+	"\x12CreateTrunkRequest\x12(\n" +
+	"\x05trunk\x18\x01 \x01(\v2\x12.gobelisk.v1.TrunkR\x05trunk\"/\n" +
+	"\x13CreateTrunkResponse\x12\x18\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\">\n" +
+	"\x12UpdateTrunkRequest\x12(\n" +
+	"\x05trunk\x18\x01 \x01(\v2\x12.gobelisk.v1.TrunkR\x05trunk\"/\n" +
+	"\x13UpdateTrunkResponse\x12\x18\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"(\n" +
+	"\x12RemoveTrunkRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"/\n" +
+	"\x13RemoveTrunkResponse\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\"\x12\n" +
 	"\x10ListRoomsRequest\")\n" +
 	"\x11ListRoomsResponse\x12\x14\n" +
@@ -2238,7 +2803,7 @@ const file_gobelisk_v1_gobelisk_proto_rawDesc = "" +
 	"\x14RemoveMeetingRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"1\n" +
 	"\x15RemoveMeetingResponse\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage2\xd7\x0f\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage2\x9c\x12\n" +
 	"\n" +
 	"Management\x12A\n" +
 	"\x06Status\x12\x1a.gobelisk.v1.StatusRequest\x1a\x1b.gobelisk.v1.StatusResponse\x12J\n" +
@@ -2259,7 +2824,12 @@ const file_gobelisk_v1_gobelisk_proto_rawDesc = "" +
 	"\fGetExtension\x12 .gobelisk.v1.GetExtensionRequest\x1a!.gobelisk.v1.GetExtensionResponse\x12\\\n" +
 	"\x0fCreateExtension\x12#.gobelisk.v1.CreateExtensionRequest\x1a$.gobelisk.v1.CreateExtensionResponse\x12\\\n" +
 	"\x0fUpdateExtension\x12#.gobelisk.v1.UpdateExtensionRequest\x1a$.gobelisk.v1.UpdateExtensionResponse\x12\\\n" +
-	"\x0fRemoveExtension\x12#.gobelisk.v1.RemoveExtensionRequest\x1a$.gobelisk.v1.RemoveExtensionResponse\x12J\n" +
+	"\x0fRemoveExtension\x12#.gobelisk.v1.RemoveExtensionRequest\x1a$.gobelisk.v1.RemoveExtensionResponse\x12M\n" +
+	"\n" +
+	"ListTrunks\x12\x1e.gobelisk.v1.ListTrunksRequest\x1a\x1f.gobelisk.v1.ListTrunksResponse\x12P\n" +
+	"\vCreateTrunk\x12\x1f.gobelisk.v1.CreateTrunkRequest\x1a .gobelisk.v1.CreateTrunkResponse\x12P\n" +
+	"\vUpdateTrunk\x12\x1f.gobelisk.v1.UpdateTrunkRequest\x1a .gobelisk.v1.UpdateTrunkResponse\x12P\n" +
+	"\vRemoveTrunk\x12\x1f.gobelisk.v1.RemoveTrunkRequest\x1a .gobelisk.v1.RemoveTrunkResponse\x12J\n" +
 	"\tListRooms\x12\x1d.gobelisk.v1.ListRoomsRequest\x1a\x1e.gobelisk.v1.ListRoomsResponse\x12M\n" +
 	"\n" +
 	"CreateRoom\x12\x1e.gobelisk.v1.CreateRoomRequest\x1a\x1f.gobelisk.v1.CreateRoomResponse\x12M\n" +
@@ -2281,7 +2851,7 @@ func file_gobelisk_v1_gobelisk_proto_rawDescGZIP() []byte {
 	return file_gobelisk_v1_gobelisk_proto_rawDescData
 }
 
-var file_gobelisk_v1_gobelisk_proto_msgTypes = make([]protoimpl.MessageInfo, 51)
+var file_gobelisk_v1_gobelisk_proto_msgTypes = make([]protoimpl.MessageInfo, 60)
 var file_gobelisk_v1_gobelisk_proto_goTypes = []any{
 	(*StatusRequest)(nil),           // 0: gobelisk.v1.StatusRequest
 	(*StatusResponse)(nil),          // 1: gobelisk.v1.StatusResponse
@@ -2319,79 +2889,99 @@ var file_gobelisk_v1_gobelisk_proto_goTypes = []any{
 	(*CreateExtensionResponse)(nil), // 33: gobelisk.v1.CreateExtensionResponse
 	(*UpdateExtensionRequest)(nil),  // 34: gobelisk.v1.UpdateExtensionRequest
 	(*UpdateExtensionResponse)(nil), // 35: gobelisk.v1.UpdateExtensionResponse
-	(*ListRoomsRequest)(nil),        // 36: gobelisk.v1.ListRoomsRequest
-	(*ListRoomsResponse)(nil),       // 37: gobelisk.v1.ListRoomsResponse
-	(*CreateRoomRequest)(nil),       // 38: gobelisk.v1.CreateRoomRequest
-	(*CreateRoomResponse)(nil),      // 39: gobelisk.v1.CreateRoomResponse
-	(*RemoveRoomRequest)(nil),       // 40: gobelisk.v1.RemoveRoomRequest
-	(*RemoveRoomResponse)(nil),      // 41: gobelisk.v1.RemoveRoomResponse
-	(*ListMeetingsRequest)(nil),     // 42: gobelisk.v1.ListMeetingsRequest
-	(*ListMeetingsResponse)(nil),    // 43: gobelisk.v1.ListMeetingsResponse
-	(*CreateMeetingRequest)(nil),    // 44: gobelisk.v1.CreateMeetingRequest
-	(*CreateMeetingResponse)(nil),   // 45: gobelisk.v1.CreateMeetingResponse
-	(*RemoveMeetingRequest)(nil),    // 46: gobelisk.v1.RemoveMeetingRequest
-	(*RemoveMeetingResponse)(nil),   // 47: gobelisk.v1.RemoveMeetingResponse
-	nil,                             // 48: gobelisk.v1.ListUsersResponse.UsersEntry
-	nil,                             // 49: gobelisk.v1.ListExtensionsResponse.ExtensionsEntry
-	nil,                             // 50: gobelisk.v1.ListMeetingsResponse.MeetingsEntry
+	(*Trunk)(nil),                   // 36: gobelisk.v1.Trunk
+	(*ListTrunksRequest)(nil),       // 37: gobelisk.v1.ListTrunksRequest
+	(*ListTrunksResponse)(nil),      // 38: gobelisk.v1.ListTrunksResponse
+	(*CreateTrunkRequest)(nil),      // 39: gobelisk.v1.CreateTrunkRequest
+	(*CreateTrunkResponse)(nil),     // 40: gobelisk.v1.CreateTrunkResponse
+	(*UpdateTrunkRequest)(nil),      // 41: gobelisk.v1.UpdateTrunkRequest
+	(*UpdateTrunkResponse)(nil),     // 42: gobelisk.v1.UpdateTrunkResponse
+	(*RemoveTrunkRequest)(nil),      // 43: gobelisk.v1.RemoveTrunkRequest
+	(*RemoveTrunkResponse)(nil),     // 44: gobelisk.v1.RemoveTrunkResponse
+	(*ListRoomsRequest)(nil),        // 45: gobelisk.v1.ListRoomsRequest
+	(*ListRoomsResponse)(nil),       // 46: gobelisk.v1.ListRoomsResponse
+	(*CreateRoomRequest)(nil),       // 47: gobelisk.v1.CreateRoomRequest
+	(*CreateRoomResponse)(nil),      // 48: gobelisk.v1.CreateRoomResponse
+	(*RemoveRoomRequest)(nil),       // 49: gobelisk.v1.RemoveRoomRequest
+	(*RemoveRoomResponse)(nil),      // 50: gobelisk.v1.RemoveRoomResponse
+	(*ListMeetingsRequest)(nil),     // 51: gobelisk.v1.ListMeetingsRequest
+	(*ListMeetingsResponse)(nil),    // 52: gobelisk.v1.ListMeetingsResponse
+	(*CreateMeetingRequest)(nil),    // 53: gobelisk.v1.CreateMeetingRequest
+	(*CreateMeetingResponse)(nil),   // 54: gobelisk.v1.CreateMeetingResponse
+	(*RemoveMeetingRequest)(nil),    // 55: gobelisk.v1.RemoveMeetingRequest
+	(*RemoveMeetingResponse)(nil),   // 56: gobelisk.v1.RemoveMeetingResponse
+	nil,                             // 57: gobelisk.v1.ListUsersResponse.UsersEntry
+	nil,                             // 58: gobelisk.v1.ListExtensionsResponse.ExtensionsEntry
+	nil,                             // 59: gobelisk.v1.ListMeetingsResponse.MeetingsEntry
 }
 var file_gobelisk_v1_gobelisk_proto_depIdxs = []int32{
-	48, // 0: gobelisk.v1.ListUsersResponse.users:type_name -> gobelisk.v1.ListUsersResponse.UsersEntry
-	49, // 1: gobelisk.v1.ListExtensionsResponse.extensions:type_name -> gobelisk.v1.ListExtensionsResponse.ExtensionsEntry
-	50, // 2: gobelisk.v1.ListMeetingsResponse.meetings:type_name -> gobelisk.v1.ListMeetingsResponse.MeetingsEntry
-	0,  // 3: gobelisk.v1.Management.Status:input_type -> gobelisk.v1.StatusRequest
-	2,  // 4: gobelisk.v1.Management.GetConfig:input_type -> gobelisk.v1.GetConfigRequest
-	4,  // 5: gobelisk.v1.Management.SetConfig:input_type -> gobelisk.v1.SetConfigRequest
-	6,  // 6: gobelisk.v1.Management.ReloadConfig:input_type -> gobelisk.v1.ReloadConfigRequest
-	8,  // 7: gobelisk.v1.Management.ListUsers:input_type -> gobelisk.v1.ListUsersRequest
-	10, // 8: gobelisk.v1.Management.AddUser:input_type -> gobelisk.v1.AddUserRequest
-	12, // 9: gobelisk.v1.Management.RemoveUser:input_type -> gobelisk.v1.RemoveUserRequest
-	14, // 10: gobelisk.v1.Management.GetDialPlan:input_type -> gobelisk.v1.GetDialPlanRequest
-	16, // 11: gobelisk.v1.Management.SetDialPlan:input_type -> gobelisk.v1.SetDialPlanRequest
-	18, // 12: gobelisk.v1.Management.ListCalls:input_type -> gobelisk.v1.ListCallsRequest
-	20, // 13: gobelisk.v1.Management.OriginateCall:input_type -> gobelisk.v1.OriginateCallRequest
-	22, // 14: gobelisk.v1.Management.GeneratePrompt:input_type -> gobelisk.v1.GeneratePromptRequest
-	24, // 15: gobelisk.v1.Management.TranscribeAudio:input_type -> gobelisk.v1.TranscribeAudioRequest
-	26, // 16: gobelisk.v1.Management.ListExtensions:input_type -> gobelisk.v1.ListExtensionsRequest
-	30, // 17: gobelisk.v1.Management.GetExtension:input_type -> gobelisk.v1.GetExtensionRequest
-	32, // 18: gobelisk.v1.Management.CreateExtension:input_type -> gobelisk.v1.CreateExtensionRequest
-	34, // 19: gobelisk.v1.Management.UpdateExtension:input_type -> gobelisk.v1.UpdateExtensionRequest
-	28, // 20: gobelisk.v1.Management.RemoveExtension:input_type -> gobelisk.v1.RemoveExtensionRequest
-	36, // 21: gobelisk.v1.Management.ListRooms:input_type -> gobelisk.v1.ListRoomsRequest
-	38, // 22: gobelisk.v1.Management.CreateRoom:input_type -> gobelisk.v1.CreateRoomRequest
-	40, // 23: gobelisk.v1.Management.RemoveRoom:input_type -> gobelisk.v1.RemoveRoomRequest
-	42, // 24: gobelisk.v1.Management.ListMeetings:input_type -> gobelisk.v1.ListMeetingsRequest
-	44, // 25: gobelisk.v1.Management.CreateMeeting:input_type -> gobelisk.v1.CreateMeetingRequest
-	46, // 26: gobelisk.v1.Management.RemoveMeeting:input_type -> gobelisk.v1.RemoveMeetingRequest
-	1,  // 27: gobelisk.v1.Management.Status:output_type -> gobelisk.v1.StatusResponse
-	3,  // 28: gobelisk.v1.Management.GetConfig:output_type -> gobelisk.v1.GetConfigResponse
-	5,  // 29: gobelisk.v1.Management.SetConfig:output_type -> gobelisk.v1.SetConfigResponse
-	7,  // 30: gobelisk.v1.Management.ReloadConfig:output_type -> gobelisk.v1.ReloadConfigResponse
-	9,  // 31: gobelisk.v1.Management.ListUsers:output_type -> gobelisk.v1.ListUsersResponse
-	11, // 32: gobelisk.v1.Management.AddUser:output_type -> gobelisk.v1.AddUserResponse
-	13, // 33: gobelisk.v1.Management.RemoveUser:output_type -> gobelisk.v1.RemoveUserResponse
-	15, // 34: gobelisk.v1.Management.GetDialPlan:output_type -> gobelisk.v1.GetDialPlanResponse
-	17, // 35: gobelisk.v1.Management.SetDialPlan:output_type -> gobelisk.v1.SetDialPlanResponse
-	19, // 36: gobelisk.v1.Management.ListCalls:output_type -> gobelisk.v1.ListCallsResponse
-	21, // 37: gobelisk.v1.Management.OriginateCall:output_type -> gobelisk.v1.OriginateCallResponse
-	23, // 38: gobelisk.v1.Management.GeneratePrompt:output_type -> gobelisk.v1.GeneratePromptResponse
-	25, // 39: gobelisk.v1.Management.TranscribeAudio:output_type -> gobelisk.v1.TranscribeAudioResponse
-	27, // 40: gobelisk.v1.Management.ListExtensions:output_type -> gobelisk.v1.ListExtensionsResponse
-	31, // 41: gobelisk.v1.Management.GetExtension:output_type -> gobelisk.v1.GetExtensionResponse
-	33, // 42: gobelisk.v1.Management.CreateExtension:output_type -> gobelisk.v1.CreateExtensionResponse
-	35, // 43: gobelisk.v1.Management.UpdateExtension:output_type -> gobelisk.v1.UpdateExtensionResponse
-	29, // 44: gobelisk.v1.Management.RemoveExtension:output_type -> gobelisk.v1.RemoveExtensionResponse
-	37, // 45: gobelisk.v1.Management.ListRooms:output_type -> gobelisk.v1.ListRoomsResponse
-	39, // 46: gobelisk.v1.Management.CreateRoom:output_type -> gobelisk.v1.CreateRoomResponse
-	41, // 47: gobelisk.v1.Management.RemoveRoom:output_type -> gobelisk.v1.RemoveRoomResponse
-	43, // 48: gobelisk.v1.Management.ListMeetings:output_type -> gobelisk.v1.ListMeetingsResponse
-	45, // 49: gobelisk.v1.Management.CreateMeeting:output_type -> gobelisk.v1.CreateMeetingResponse
-	47, // 50: gobelisk.v1.Management.RemoveMeeting:output_type -> gobelisk.v1.RemoveMeetingResponse
-	27, // [27:51] is the sub-list for method output_type
-	3,  // [3:27] is the sub-list for method input_type
-	3,  // [3:3] is the sub-list for extension type_name
-	3,  // [3:3] is the sub-list for extension extendee
-	0,  // [0:3] is the sub-list for field type_name
+	57, // 0: gobelisk.v1.ListUsersResponse.users:type_name -> gobelisk.v1.ListUsersResponse.UsersEntry
+	58, // 1: gobelisk.v1.ListExtensionsResponse.extensions:type_name -> gobelisk.v1.ListExtensionsResponse.ExtensionsEntry
+	36, // 2: gobelisk.v1.ListTrunksResponse.trunks:type_name -> gobelisk.v1.Trunk
+	36, // 3: gobelisk.v1.CreateTrunkRequest.trunk:type_name -> gobelisk.v1.Trunk
+	36, // 4: gobelisk.v1.UpdateTrunkRequest.trunk:type_name -> gobelisk.v1.Trunk
+	59, // 5: gobelisk.v1.ListMeetingsResponse.meetings:type_name -> gobelisk.v1.ListMeetingsResponse.MeetingsEntry
+	0,  // 6: gobelisk.v1.Management.Status:input_type -> gobelisk.v1.StatusRequest
+	2,  // 7: gobelisk.v1.Management.GetConfig:input_type -> gobelisk.v1.GetConfigRequest
+	4,  // 8: gobelisk.v1.Management.SetConfig:input_type -> gobelisk.v1.SetConfigRequest
+	6,  // 9: gobelisk.v1.Management.ReloadConfig:input_type -> gobelisk.v1.ReloadConfigRequest
+	8,  // 10: gobelisk.v1.Management.ListUsers:input_type -> gobelisk.v1.ListUsersRequest
+	10, // 11: gobelisk.v1.Management.AddUser:input_type -> gobelisk.v1.AddUserRequest
+	12, // 12: gobelisk.v1.Management.RemoveUser:input_type -> gobelisk.v1.RemoveUserRequest
+	14, // 13: gobelisk.v1.Management.GetDialPlan:input_type -> gobelisk.v1.GetDialPlanRequest
+	16, // 14: gobelisk.v1.Management.SetDialPlan:input_type -> gobelisk.v1.SetDialPlanRequest
+	18, // 15: gobelisk.v1.Management.ListCalls:input_type -> gobelisk.v1.ListCallsRequest
+	20, // 16: gobelisk.v1.Management.OriginateCall:input_type -> gobelisk.v1.OriginateCallRequest
+	22, // 17: gobelisk.v1.Management.GeneratePrompt:input_type -> gobelisk.v1.GeneratePromptRequest
+	24, // 18: gobelisk.v1.Management.TranscribeAudio:input_type -> gobelisk.v1.TranscribeAudioRequest
+	26, // 19: gobelisk.v1.Management.ListExtensions:input_type -> gobelisk.v1.ListExtensionsRequest
+	30, // 20: gobelisk.v1.Management.GetExtension:input_type -> gobelisk.v1.GetExtensionRequest
+	32, // 21: gobelisk.v1.Management.CreateExtension:input_type -> gobelisk.v1.CreateExtensionRequest
+	34, // 22: gobelisk.v1.Management.UpdateExtension:input_type -> gobelisk.v1.UpdateExtensionRequest
+	28, // 23: gobelisk.v1.Management.RemoveExtension:input_type -> gobelisk.v1.RemoveExtensionRequest
+	37, // 24: gobelisk.v1.Management.ListTrunks:input_type -> gobelisk.v1.ListTrunksRequest
+	39, // 25: gobelisk.v1.Management.CreateTrunk:input_type -> gobelisk.v1.CreateTrunkRequest
+	41, // 26: gobelisk.v1.Management.UpdateTrunk:input_type -> gobelisk.v1.UpdateTrunkRequest
+	43, // 27: gobelisk.v1.Management.RemoveTrunk:input_type -> gobelisk.v1.RemoveTrunkRequest
+	45, // 28: gobelisk.v1.Management.ListRooms:input_type -> gobelisk.v1.ListRoomsRequest
+	47, // 29: gobelisk.v1.Management.CreateRoom:input_type -> gobelisk.v1.CreateRoomRequest
+	49, // 30: gobelisk.v1.Management.RemoveRoom:input_type -> gobelisk.v1.RemoveRoomRequest
+	51, // 31: gobelisk.v1.Management.ListMeetings:input_type -> gobelisk.v1.ListMeetingsRequest
+	53, // 32: gobelisk.v1.Management.CreateMeeting:input_type -> gobelisk.v1.CreateMeetingRequest
+	55, // 33: gobelisk.v1.Management.RemoveMeeting:input_type -> gobelisk.v1.RemoveMeetingRequest
+	1,  // 34: gobelisk.v1.Management.Status:output_type -> gobelisk.v1.StatusResponse
+	3,  // 35: gobelisk.v1.Management.GetConfig:output_type -> gobelisk.v1.GetConfigResponse
+	5,  // 36: gobelisk.v1.Management.SetConfig:output_type -> gobelisk.v1.SetConfigResponse
+	7,  // 37: gobelisk.v1.Management.ReloadConfig:output_type -> gobelisk.v1.ReloadConfigResponse
+	9,  // 38: gobelisk.v1.Management.ListUsers:output_type -> gobelisk.v1.ListUsersResponse
+	11, // 39: gobelisk.v1.Management.AddUser:output_type -> gobelisk.v1.AddUserResponse
+	13, // 40: gobelisk.v1.Management.RemoveUser:output_type -> gobelisk.v1.RemoveUserResponse
+	15, // 41: gobelisk.v1.Management.GetDialPlan:output_type -> gobelisk.v1.GetDialPlanResponse
+	17, // 42: gobelisk.v1.Management.SetDialPlan:output_type -> gobelisk.v1.SetDialPlanResponse
+	19, // 43: gobelisk.v1.Management.ListCalls:output_type -> gobelisk.v1.ListCallsResponse
+	21, // 44: gobelisk.v1.Management.OriginateCall:output_type -> gobelisk.v1.OriginateCallResponse
+	23, // 45: gobelisk.v1.Management.GeneratePrompt:output_type -> gobelisk.v1.GeneratePromptResponse
+	25, // 46: gobelisk.v1.Management.TranscribeAudio:output_type -> gobelisk.v1.TranscribeAudioResponse
+	27, // 47: gobelisk.v1.Management.ListExtensions:output_type -> gobelisk.v1.ListExtensionsResponse
+	31, // 48: gobelisk.v1.Management.GetExtension:output_type -> gobelisk.v1.GetExtensionResponse
+	33, // 49: gobelisk.v1.Management.CreateExtension:output_type -> gobelisk.v1.CreateExtensionResponse
+	35, // 50: gobelisk.v1.Management.UpdateExtension:output_type -> gobelisk.v1.UpdateExtensionResponse
+	29, // 51: gobelisk.v1.Management.RemoveExtension:output_type -> gobelisk.v1.RemoveExtensionResponse
+	38, // 52: gobelisk.v1.Management.ListTrunks:output_type -> gobelisk.v1.ListTrunksResponse
+	40, // 53: gobelisk.v1.Management.CreateTrunk:output_type -> gobelisk.v1.CreateTrunkResponse
+	42, // 54: gobelisk.v1.Management.UpdateTrunk:output_type -> gobelisk.v1.UpdateTrunkResponse
+	44, // 55: gobelisk.v1.Management.RemoveTrunk:output_type -> gobelisk.v1.RemoveTrunkResponse
+	46, // 56: gobelisk.v1.Management.ListRooms:output_type -> gobelisk.v1.ListRoomsResponse
+	48, // 57: gobelisk.v1.Management.CreateRoom:output_type -> gobelisk.v1.CreateRoomResponse
+	50, // 58: gobelisk.v1.Management.RemoveRoom:output_type -> gobelisk.v1.RemoveRoomResponse
+	52, // 59: gobelisk.v1.Management.ListMeetings:output_type -> gobelisk.v1.ListMeetingsResponse
+	54, // 60: gobelisk.v1.Management.CreateMeeting:output_type -> gobelisk.v1.CreateMeetingResponse
+	56, // 61: gobelisk.v1.Management.RemoveMeeting:output_type -> gobelisk.v1.RemoveMeetingResponse
+	34, // [34:62] is the sub-list for method output_type
+	6,  // [6:34] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_gobelisk_v1_gobelisk_proto_init() }
@@ -2405,7 +2995,7 @@ func file_gobelisk_v1_gobelisk_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_gobelisk_v1_gobelisk_proto_rawDesc), len(file_gobelisk_v1_gobelisk_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   51,
+			NumMessages:   60,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

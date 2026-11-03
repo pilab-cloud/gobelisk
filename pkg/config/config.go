@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -51,6 +52,121 @@ type FeatureConfig struct {
 	FeatureCodes FeatureCodeConfig `yaml:"feature_codes"`
 	// Park is the call-park orbit (GOBELISK-12).
 	Park ParkConfig `yaml:"park"`
+}
+
+// TrunkConfig is one provisioned trunk (GOBELISK-24). The config file is the
+// durable store; management-RPC edits apply until the next reload.
+type TrunkConfig struct {
+	// Name uniquely identifies the trunk.
+	Name string `yaml:"name"`
+	// Type is "sip" (default), "pstn" or "iax". sip and pstn register over
+	// SIP identically (pstn reaches the public network through a gateway);
+	// iax is provisioned but its protocol is not implemented yet.
+	Type string `yaml:"type"`
+	// Host is the registrar / outbound proxy; Port defaults to 5060.
+	Host string `yaml:"host"`
+	Port int    `yaml:"port"`
+	// Transport: "udp" (default) is the only one registered so far.
+	Transport string `yaml:"transport"`
+	// Username/Password authenticate the outbound REGISTER (digest).
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	// FromDomain is the domain in From/To/Request-URI; defaults to Host.
+	FromDomain string `yaml:"from_domain"`
+	// CallerID overrides the From user part when set.
+	CallerID string `yaml:"callerid"`
+	// Enabled (default true) turns registration on or off.
+	Enabled *bool `yaml:"enabled"`
+	// RegisterExpires is the requested registration expiry (default 3600).
+	RegisterExpires int `yaml:"register_expires"`
+	// Context is the inbound destination for calls arriving on this trunk
+	// (used by inbound routes, GOBELISK-20).
+	Context string `yaml:"context"`
+	// RetrySeconds is the delay between failed register attempts
+	// (default 30).
+	RetrySeconds int `yaml:"retry_seconds"`
+	// HealthIntervalSeconds is how often an OPTIONS probe runs while
+	// registered (default 60).
+	HealthIntervalSeconds int `yaml:"health_interval_seconds"`
+	// HealthTimeoutSeconds is the per-probe timeout (default 3).
+	HealthTimeoutSeconds int `yaml:"health_timeout_seconds"`
+}
+
+// TrunkType returns the normalised trunk type (default "sip").
+func (t TrunkConfig) TrunkType() string {
+	switch strings.ToLower(strings.TrimSpace(t.Type)) {
+	case "", "sip":
+		return "sip"
+	case "pstn":
+		return "pstn"
+	case "iax":
+		return "iax"
+	default:
+		return strings.ToLower(strings.TrimSpace(t.Type))
+	}
+}
+
+// Valid reports whether the trunk has the fields a registration needs.
+func (t TrunkConfig) Valid() error {
+	switch t.TrunkType() {
+	case "sip", "pstn", "iax":
+	default:
+		return fmt.Errorf("unknown trunk type %q (want sip, pstn or iax)", t.Type)
+	}
+	if t.Name == "" {
+		return fmt.Errorf("trunk name is required")
+	}
+	if t.TrunkType() != "iax" && t.Host == "" {
+		return fmt.Errorf("trunk host is required")
+	}
+	return nil
+}
+
+// RegisterEnabled reports whether the trunk should register (default true).
+func (t TrunkConfig) RegisterEnabled() bool { return t.Enabled == nil || *t.Enabled }
+
+// PortOrDefault returns the SIP port (default 5060).
+func (t TrunkConfig) PortOrDefault() int {
+	if t.Port <= 0 {
+		return 5060
+	}
+	return t.Port
+}
+
+// ExpiresOrDefault returns the requested expiry (default 3600, floor 2 so
+// short lab values work).
+func (t TrunkConfig) ExpiresOrDefault() int {
+	if t.RegisterExpires <= 0 {
+		return 3600
+	}
+	if t.RegisterExpires < 2 {
+		return 2
+	}
+	return t.RegisterExpires
+}
+
+// RetryOrDefault returns the failed-attempt delay (default 30).
+func (t TrunkConfig) RetryOrDefault() time.Duration {
+	if t.RetrySeconds <= 0 {
+		return 30 * time.Second
+	}
+	return time.Duration(t.RetrySeconds) * time.Second
+}
+
+// HealthIntervalOrDefault returns the OPTIONS probe interval (default 60).
+func (t TrunkConfig) HealthIntervalOrDefault() time.Duration {
+	if t.HealthIntervalSeconds <= 0 {
+		return 60 * time.Second
+	}
+	return time.Duration(t.HealthIntervalSeconds) * time.Second
+}
+
+// HealthTimeoutOrDefault returns the per-probe timeout (default 3).
+func (t TrunkConfig) HealthTimeoutOrDefault() time.Duration {
+	if t.HealthTimeoutSeconds <= 0 {
+		return 3 * time.Second
+	}
+	return time.Duration(t.HealthTimeoutSeconds) * time.Second
 }
 
 // FeatureCodeConfig lists the codes dialed as a number (GOBELISK-18).
@@ -129,6 +245,10 @@ type Config struct {
 	DialPlan          string           `yaml:"dialplan"`
 	MeetingServiceURL string           `yaml:"meeting_service_url"`
 	MeetingBridgeExt  string           `yaml:"meeting_bridge_ext"`
+	// Trunks are the provisioned SIP/PSTN/IAX trunks (GOBELISK-24). The
+	// config file is the durable store; management-RPC edits apply until
+	// the next reload.
+	Trunks []TrunkConfig `yaml:"trunks"`
 }
 
 // RingTimeout returns the configured ring timeout, falling back to the default.

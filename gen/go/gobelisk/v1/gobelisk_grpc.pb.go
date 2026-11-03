@@ -37,6 +37,10 @@ const (
 	Management_CreateExtension_FullMethodName = "/gobelisk.v1.Management/CreateExtension"
 	Management_UpdateExtension_FullMethodName = "/gobelisk.v1.Management/UpdateExtension"
 	Management_RemoveExtension_FullMethodName = "/gobelisk.v1.Management/RemoveExtension"
+	Management_ListTrunks_FullMethodName      = "/gobelisk.v1.Management/ListTrunks"
+	Management_CreateTrunk_FullMethodName     = "/gobelisk.v1.Management/CreateTrunk"
+	Management_UpdateTrunk_FullMethodName     = "/gobelisk.v1.Management/UpdateTrunk"
+	Management_RemoveTrunk_FullMethodName     = "/gobelisk.v1.Management/RemoveTrunk"
 	Management_ListRooms_FullMethodName       = "/gobelisk.v1.Management/ListRooms"
 	Management_CreateRoom_FullMethodName      = "/gobelisk.v1.Management/CreateRoom"
 	Management_RemoveRoom_FullMethodName      = "/gobelisk.v1.Management/RemoveRoom"
@@ -67,6 +71,10 @@ type ManagementClient interface {
 	CreateExtension(ctx context.Context, in *CreateExtensionRequest, opts ...grpc.CallOption) (*CreateExtensionResponse, error)
 	UpdateExtension(ctx context.Context, in *UpdateExtensionRequest, opts ...grpc.CallOption) (*UpdateExtensionResponse, error)
 	RemoveExtension(ctx context.Context, in *RemoveExtensionRequest, opts ...grpc.CallOption) (*RemoveExtensionResponse, error)
+	ListTrunks(ctx context.Context, in *ListTrunksRequest, opts ...grpc.CallOption) (*ListTrunksResponse, error)
+	CreateTrunk(ctx context.Context, in *CreateTrunkRequest, opts ...grpc.CallOption) (*CreateTrunkResponse, error)
+	UpdateTrunk(ctx context.Context, in *UpdateTrunkRequest, opts ...grpc.CallOption) (*UpdateTrunkResponse, error)
+	RemoveTrunk(ctx context.Context, in *RemoveTrunkRequest, opts ...grpc.CallOption) (*RemoveTrunkResponse, error)
 	ListRooms(ctx context.Context, in *ListRoomsRequest, opts ...grpc.CallOption) (*ListRoomsResponse, error)
 	CreateRoom(ctx context.Context, in *CreateRoomRequest, opts ...grpc.CallOption) (*CreateRoomResponse, error)
 	RemoveRoom(ctx context.Context, in *RemoveRoomRequest, opts ...grpc.CallOption) (*RemoveRoomResponse, error)
@@ -263,6 +271,46 @@ func (c *managementClient) RemoveExtension(ctx context.Context, in *RemoveExtens
 	return out, nil
 }
 
+func (c *managementClient) ListTrunks(ctx context.Context, in *ListTrunksRequest, opts ...grpc.CallOption) (*ListTrunksResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListTrunksResponse)
+	err := c.cc.Invoke(ctx, Management_ListTrunks_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *managementClient) CreateTrunk(ctx context.Context, in *CreateTrunkRequest, opts ...grpc.CallOption) (*CreateTrunkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateTrunkResponse)
+	err := c.cc.Invoke(ctx, Management_CreateTrunk_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *managementClient) UpdateTrunk(ctx context.Context, in *UpdateTrunkRequest, opts ...grpc.CallOption) (*UpdateTrunkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateTrunkResponse)
+	err := c.cc.Invoke(ctx, Management_UpdateTrunk_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *managementClient) RemoveTrunk(ctx context.Context, in *RemoveTrunkRequest, opts ...grpc.CallOption) (*RemoveTrunkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemoveTrunkResponse)
+	err := c.cc.Invoke(ctx, Management_RemoveTrunk_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *managementClient) ListRooms(ctx context.Context, in *ListRoomsRequest, opts ...grpc.CallOption) (*ListRoomsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListRoomsResponse)
@@ -345,6 +393,10 @@ type ManagementServer interface {
 	CreateExtension(context.Context, *CreateExtensionRequest) (*CreateExtensionResponse, error)
 	UpdateExtension(context.Context, *UpdateExtensionRequest) (*UpdateExtensionResponse, error)
 	RemoveExtension(context.Context, *RemoveExtensionRequest) (*RemoveExtensionResponse, error)
+	ListTrunks(context.Context, *ListTrunksRequest) (*ListTrunksResponse, error)
+	CreateTrunk(context.Context, *CreateTrunkRequest) (*CreateTrunkResponse, error)
+	UpdateTrunk(context.Context, *UpdateTrunkRequest) (*UpdateTrunkResponse, error)
+	RemoveTrunk(context.Context, *RemoveTrunkRequest) (*RemoveTrunkResponse, error)
 	ListRooms(context.Context, *ListRoomsRequest) (*ListRoomsResponse, error)
 	CreateRoom(context.Context, *CreateRoomRequest) (*CreateRoomResponse, error)
 	RemoveRoom(context.Context, *RemoveRoomRequest) (*RemoveRoomResponse, error)
@@ -414,6 +466,18 @@ func (UnimplementedManagementServer) UpdateExtension(context.Context, *UpdateExt
 }
 func (UnimplementedManagementServer) RemoveExtension(context.Context, *RemoveExtensionRequest) (*RemoveExtensionResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RemoveExtension not implemented")
+}
+func (UnimplementedManagementServer) ListTrunks(context.Context, *ListTrunksRequest) (*ListTrunksResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListTrunks not implemented")
+}
+func (UnimplementedManagementServer) CreateTrunk(context.Context, *CreateTrunkRequest) (*CreateTrunkResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateTrunk not implemented")
+}
+func (UnimplementedManagementServer) UpdateTrunk(context.Context, *UpdateTrunkRequest) (*UpdateTrunkResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateTrunk not implemented")
+}
+func (UnimplementedManagementServer) RemoveTrunk(context.Context, *RemoveTrunkRequest) (*RemoveTrunkResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemoveTrunk not implemented")
 }
 func (UnimplementedManagementServer) ListRooms(context.Context, *ListRoomsRequest) (*ListRoomsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListRooms not implemented")
@@ -778,6 +842,78 @@ func _Management_RemoveExtension_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Management_ListTrunks_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListTrunksRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ManagementServer).ListTrunks(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Management_ListTrunks_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ManagementServer).ListTrunks(ctx, req.(*ListTrunksRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Management_CreateTrunk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateTrunkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ManagementServer).CreateTrunk(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Management_CreateTrunk_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ManagementServer).CreateTrunk(ctx, req.(*CreateTrunkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Management_UpdateTrunk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateTrunkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ManagementServer).UpdateTrunk(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Management_UpdateTrunk_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ManagementServer).UpdateTrunk(ctx, req.(*UpdateTrunkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Management_RemoveTrunk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveTrunkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ManagementServer).RemoveTrunk(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Management_RemoveTrunk_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ManagementServer).RemoveTrunk(ctx, req.(*RemoveTrunkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Management_ListRooms_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListRoomsRequest)
 	if err := dec(in); err != nil {
@@ -964,6 +1100,22 @@ var Management_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveExtension",
 			Handler:    _Management_RemoveExtension_Handler,
+		},
+		{
+			MethodName: "ListTrunks",
+			Handler:    _Management_ListTrunks_Handler,
+		},
+		{
+			MethodName: "CreateTrunk",
+			Handler:    _Management_CreateTrunk_Handler,
+		},
+		{
+			MethodName: "UpdateTrunk",
+			Handler:    _Management_UpdateTrunk_Handler,
+		},
+		{
+			MethodName: "RemoveTrunk",
+			Handler:    _Management_RemoveTrunk_Handler,
 		},
 		{
 			MethodName: "ListRooms",

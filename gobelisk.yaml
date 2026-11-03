@@ -51,6 +51,27 @@ features:
     orbit_size: 10
     timeout_seconds: 300
 
+# Provisioned SIP/PSTN/IAX trunks (GOBELISK-24). The server registers
+# outbound with digest auth and monitors health with OPTIONS probes
+# (GOBELISK-25). This file is the durable store; gobelisk manage trunk
+# CRUD applies until the next reload.
+trunks: []
+#  - name: uplink
+#    type: sip            # sip | pstn | iax (iax is provisioned only)
+#    host: sip.provider.example.com
+#    port: 5060
+#    transport: udp
+#    username: gw-user
+#    password: s3cret
+#    from_domain: sip.provider.example.com
+#    callerid: "+3612345678"
+#    enabled: true
+#    register_expires: 3600
+#    context: from-trunk  # inbound destination (GOBELISK-20)
+#    retry_seconds: 30
+#    health_interval_seconds: 60
+#    health_timeout_seconds: 3
+
 # Local AI Voice Customer Service Stack (100% Local Inference on Quadro T2000 GPU)
 voice_agent:
   enabled: true

@@ -41,8 +41,8 @@ Issue links point at the [PiR@ issue tracker](https://pira.hu) (`https://pira.hu
 
 - ✅ Extension CRUD via management RPC
 - ✅ Extension registration lookup
-- ❌ Trunk provisioning (SIP/PSTN/IAX) — [GOBELISK-24](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-24)
-- ❌ Trunk registration and health — [GOBELISK-25](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-25)
+- ✅ Trunk provisioning (SIP/PSTN/IAX) — [GOBELISK-24](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-24)
+- ✅ Trunk registration and health — [GOBELISK-25](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-25)
 - ❌ Extension templates / bulk provisioning — [GOBELISK-26](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-26)
 - ❌ Device provisioning (XML/HTTP) — [GOBELISK-27](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-27)
 

@@ -103,6 +103,14 @@ type Server struct {
 	featureMu   sync.Mutex
 	featureLast map[string]featureEntry
 
+	// provisioned trunks and their registration/health loops (GOBELISK-24/25).
+	trunkMu     sync.Mutex
+	trunkStates map[string]*trunkState
+	listening   bool
+	// trunkWait routes responses of outbound trunk requests by branch.
+	trunkWaitMu sync.Mutex
+	trunkWait   map[string]chan *sip.RawMessage
+
 	msgCh  chan sipMsg
 	doneCh chan struct{}
 
@@ -323,6 +331,8 @@ func NewServer(opts ...ServerOpts) *Server {
 		parks:           make(map[int]*parkEntry),
 		parkTimers:      make(map[int]*time.Timer),
 		featureLast:     make(map[string]featureEntry),
+		trunkStates:     make(map[string]*trunkState),
+		trunkWait:       make(map[string]chan *sip.RawMessage),
 		ringState:       ringgroup.NewState(),
 		msgCh:           make(chan sipMsg, 256),
 		doneCh:          make(chan struct{}, 1),
@@ -352,6 +362,7 @@ func NewServer(opts ...ServerOpts) *Server {
 		s.cfg = config.Default()
 	}
 	s.seedDND()
+	s.syncTrunks()
 	if s.rpcPort == 0 {
 		s.rpcPort = 8080
 	}
@@ -392,6 +403,7 @@ func (s *Server) ListenUDP(port int) error {
 		return err
 	}
 	s.conn = conn
+	s.startTrunkLoops()
 
 	s.log.Info().Msgf("server listening on :%d", port)
 
@@ -659,6 +671,8 @@ func (s *Server) SetConfig(ctx context.Context, req *gobeliskv1.SetConfigRequest
 		return nil, err
 	}
 	s.cfg = &c
+	s.seedDND()
+	s.syncTrunks()
 	if s.dialPlan != nil && c.DialPlan != "" {
 		dialplan.ApplyConfig(s.dialPlan, s.ivr, c.DialPlan)
 	}
@@ -672,6 +686,7 @@ func (s *Server) ReloadConfig(ctx context.Context, req *gobeliskv1.ReloadConfigR
 	}
 	s.cfg = c
 	s.seedDND()
+	s.syncTrunks()
 	if s.dialPlan != nil && c.DialPlan != "" {
 		dialplan.ApplyConfig(s.dialPlan, s.ivr, c.DialPlan)
 	}
@@ -1689,6 +1704,12 @@ func (s *Server) handleCancel(m sipMsg) {
 
 func (s *Server) routeResponse(m sipMsg) {
 	resp := m.msg
+
+	// Responses to outbound trunk requests (REGISTER, OPTIONS) are routed
+	// by their branch (GOBELISK-25).
+	if s.routeTrunkResponse(resp) {
+		return
+	}
 
 	// Responses to requests we forwarded (initial INVITE, re-INVITE, UPDATE)
 	// go back to the leg that asked for them (GOBELISK-10).

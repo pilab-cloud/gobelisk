@@ -24,6 +24,11 @@ service Management {
   rpc UpdateExtension(UpdateExtensionRequest) returns (UpdateExtensionResponse);
   rpc RemoveExtension(RemoveExtensionRequest) returns (RemoveExtensionResponse);
 
+  rpc ListTrunks(ListTrunksRequest) returns (ListTrunksResponse);
+  rpc CreateTrunk(CreateTrunkRequest) returns (CreateTrunkResponse);
+  rpc UpdateTrunk(UpdateTrunkRequest) returns (UpdateTrunkResponse);
+  rpc RemoveTrunk(RemoveTrunkRequest) returns (RemoveTrunkResponse);
+
   rpc ListRooms(ListRoomsRequest) returns (ListRoomsResponse);
   rpc CreateRoom(CreateRoomRequest) returns (CreateRoomResponse);
   rpc RemoveRoom(RemoveRoomRequest) returns (RemoveRoomResponse);
@@ -149,6 +154,57 @@ message UpdateExtensionRequest {
   string contact = 2;
 }
 message UpdateExtensionResponse {
+  string message = 1;
+}
+
+// Trunk is a provisioned SIP/PSTN/IAX trunk with its live registration
+// status (GOBELISK-24 / GOBELISK-25).
+message Trunk {
+  string name = 1;
+  string type = 2; // sip | pstn | iax
+  string host = 3;
+  int32 port = 4;
+  string transport = 5;
+  string username = 6;
+  string password = 7; // write-only: never returned by ListTrunks
+  string from_domain = 8;
+  string callerid = 9;
+  bool enabled = 10;
+  int32 register_expires = 11;
+  string context = 12;
+  // Runtime status (GOBELISK-25):
+  // disabled | registering | registered | unhealthy | unsupported
+  string state = 13;
+  int64 expires_unix = 14;
+  int64 last_register_unix = 15;
+  int32 consecutive_failures = 16;
+  string last_error = 17;
+  string alert = 18;
+}
+
+message ListTrunksRequest {}
+message ListTrunksResponse {
+  repeated Trunk trunks = 1;
+}
+
+message CreateTrunkRequest {
+  Trunk trunk = 1;
+}
+message CreateTrunkResponse {
+  string message = 1;
+}
+
+message UpdateTrunkRequest {
+  Trunk trunk = 1;
+}
+message UpdateTrunkResponse {
+  string message = 1;
+}
+
+message RemoveTrunkRequest {
+  string name = 1;
+}
+message RemoveTrunkResponse {
   string message = 1;
 }
 
