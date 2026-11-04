@@ -1,4 +1,4 @@
-# Gobelisk
+# Gobelisk - The PBX and SIP toolkit in go
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/pilab-cloud/gobelisk)](https://goreportcard.com/report/github.com/pilab-cloud/gobelisk)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -9,6 +9,10 @@
 [![Discord](https://img.shields.io/badge/Discord-Join%20Us-7289da.svg)](https://discord.gg/)
 
 > **The future of telephony. Written in Go. Built for the modern era.**
+
+<p align="center">
+<img src="docs/gopher.png" height="350"/>
+</p>
 
 Gobelisk is a free, modern, and extensible PBX server built from the ground up in pure Go. Inspired by Asterisk, but reimagined for simplicity, performance, and cloud-native deployments. Say goodbye to decades of legacy complexity and hello to a sleek, developer-friendly communication platform.
 
@@ -24,24 +28,24 @@ Gobelisk is a free, modern, and extensible PBX server built from the ground up i
 
 ## 🎯 Features
 
-| Feature | Status | Description |
-| --- | --- | --- |
-| **SIP Stack** | ✅ Stable | RFC 3261 compliant SIP implementation with UDP/TCP/TLS support |
-| **Call Routing** | ✅ Stable | Flexible dialplan with wildcard matching and intelligent routing |
-| **IVR Menus** | ✅ Stable | Interactive Voice Response with DTMF collection |
-| **Extension Management** | ✅ Stable | Full CRUD operations via gRPC API |
-| **Room/Conference Support** | ✅ Stable | Basic conferencing with participant tracking |
-| **Voicemail** | 🟡 Beta | Voicemail infrastructure with transcription support |
-| **Call Transfer** | 🚧 WIP | Attended and blind transfer capabilities |
-| **Call Center (ACD)** | 🚧 WIP | Queue management and agent routing |
-| **Trunk Management** | 🚧 WIP | SIP trunk provisioning and routing |
-| **Recording & Analytics** | 🚧 WIP | Call recording and detailed analytics |
+| Feature                     | Status    | Description                                                      |
+| --------------------------- | --------- | ---------------------------------------------------------------- |
+| **SIP Stack**               | ✅ Stable | RFC 3261 compliant SIP implementation with UDP/TCP/TLS support   |
+| **Call Routing**            | ✅ Stable | Flexible dialplan with wildcard matching and intelligent routing |
+| **IVR Menus**               | ✅ Stable | Interactive Voice Response with DTMF collection                  |
+| **Extension Management**    | ✅ Stable | Full CRUD operations via gRPC API                                |
+| **Room/Conference Support** | ✅ Stable | Basic conferencing with participant tracking                     |
+| **Voicemail**               | 🟡 Beta   | Voicemail infrastructure with transcription support              |
+| **Call Transfer**           | 🚧 WIP    | Attended and blind transfer capabilities                         |
+| **Call Center (ACD)**       | 🚧 WIP    | Queue management and agent routing                               |
+| **Trunk Management**        | 🚧 WIP    | SIP trunk provisioning and routing                               |
+| **Recording & Analytics**   | 🚧 WIP    | Call recording and detailed analytics                            |
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- Go 1.26+ 
+- Go 1.26+
 - (Optional) Docker for containerized deployment
 
 ### Installation
@@ -112,10 +116,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 💖 Credits
 
-**Made with <3 by Progressive Innovation LAB - Paal Gyula <gyula@pilab.hu>**
+**Made with ❤️ by Progressive Innovation LAB - Paál Gyula <gyula@pilab.hu>**
 
 Gobelisk is proudly developed and maintained by the team at [Progressive Innovation LAB](https://pilab.hu). We believe in building open-source tools that empower developers and businesses to communicate freely.
 
 ---
 
-*Gobelisk - Telephony reimagined for the modern world.*
+_Gobelisk - Telephony reimagined for the modern world._
