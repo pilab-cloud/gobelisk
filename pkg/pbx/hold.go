@@ -194,6 +194,10 @@ func (s *Server) forwardInDialog(m sipMsg, call *Call, method string) {
 	}
 	inviteMsg := buildRequest(method, uri, req, map[string]string{
 		"Via": "SIP/2.0/UDP " + s.host + ":" + strconv.Itoa(s.port) + ";branch=" + branch,
+		// In-dialog requests forwarded to the callee leg keep the caller
+		// ID that leg saw at dialog creation (GOBELISK-23); requests the
+		// other way carry their sender's own From unchanged.
+		"From": fromForLeg(call, leg),
 	}, req.Body)
 
 	s.log.Info().

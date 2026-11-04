@@ -34,15 +34,14 @@ func TestOutboundRouteCallPlaced(t *testing.T) {
 	inviteCh := make(chan string, 4)
 	ackCh := make(chan string, 4)
 	byeCh := make(chan string, 4)
-	var provider *testUA
-	provider = startRegistrar(t, func(req string) string {
+	provider := startRegistrar(t, func(req string, ua *testUA) string {
 		switch {
 		case strings.HasPrefix(req, "REGISTER"):
 			return respTo(req, 200, "OK", map[string]string{"Expires": "60"}, "")
 		case strings.HasPrefix(req, "INVITE"):
 			inviteCh <- req
 			return respTo(req, 200, "OK", map[string]string{
-				"Contact": "<sip:outbound@" + provider.addr.String() + ">",
+				"Contact": "<sip:outbound@" + ua.addr.String() + ">",
 			}, "")
 		case strings.HasPrefix(req, "ACK "):
 			ackCh <- req
@@ -94,8 +93,7 @@ func TestOutboundRouteCallPlaced(t *testing.T) {
 func TestOutboundINVITEDigestRetry(t *testing.T) {
 	noAuthCh := make(chan string, 4)
 	authCh := make(chan string, 4)
-	var provider *testUA
-	provider = startRegistrar(t, func(req string) string {
+	provider := startRegistrar(t, func(req string, ua *testUA) string {
 		switch {
 		case strings.HasPrefix(req, "REGISTER"):
 			return respTo(req, 200, "OK", map[string]string{"Expires": "60"}, "")
@@ -108,7 +106,7 @@ func TestOutboundINVITEDigestRetry(t *testing.T) {
 			}
 			authCh <- req
 			return respTo(req, 200, "OK", map[string]string{
-				"Contact": "<sip:outbound@" + provider.addr.String() + ">",
+				"Contact": "<sip:outbound@" + ua.addr.String() + ">",
 			}, "")
 		}
 		return ""
@@ -169,27 +167,26 @@ func TestOutboundLeastCostRouting(t *testing.T) {
 	cheapInvite := make(chan string, 4)
 	expensiveInvite := make(chan string, 4)
 
-	var cheap, expensive *testUA
-	cheap = startRegistrar(t, func(req string) string {
+	cheap := startRegistrar(t, func(req string, ua *testUA) string {
 		if strings.HasPrefix(req, "REGISTER") {
 			return respTo(req, 200, "OK", map[string]string{"Expires": "60"}, "")
 		}
 		if strings.HasPrefix(req, "INVITE") {
 			cheapInvite <- req
 			return respTo(req, 200, "OK", map[string]string{
-				"Contact": "<sip:cheap@" + cheap.addr.String() + ">",
+				"Contact": "<sip:cheap@" + ua.addr.String() + ">",
 			}, "")
 		}
 		return ""
 	})
-	expensive = startRegistrar(t, func(req string) string {
+	expensive := startRegistrar(t, func(req string, ua *testUA) string {
 		if strings.HasPrefix(req, "REGISTER") {
 			return respTo(req, 200, "OK", map[string]string{"Expires": "60"}, "")
 		}
 		if strings.HasPrefix(req, "INVITE") {
 			expensiveInvite <- req
 			return respTo(req, 200, "OK", map[string]string{
-				"Contact": "<sip:exp@" + expensive.addr.String() + ">",
+				"Contact": "<sip:exp@" + ua.addr.String() + ">",
 			}, "")
 		}
 		return ""
@@ -260,4 +257,190 @@ func TestInboundRouteDIDReachesDestination(t *testing.T) {
 	provider.send(invite("inb-2", "3615556666", "9999999", provider.addr, srvAddr), srvAddr)
 	provider.expect("SIP/2.0 404", 2*time.Second)
 	provider.expectNone(400 * time.Millisecond)
+}
+
+// ---- caller ID manipulation (GOBELISK-23) ----
+
+func TestOutboundCallerIDSet(t *testing.T) {
+	inviteCh := make(chan string, 4)
+	ackCh := make(chan string, 4)
+	provider := startRegistrar(t, func(req string, ua *testUA) string {
+		switch {
+		case strings.HasPrefix(req, "REGISTER"):
+			return respTo(req, 200, "OK", map[string]string{"Expires": "60"}, "")
+		case strings.HasPrefix(req, "INVITE"):
+			inviteCh <- req
+			return respTo(req, 200, "OK", map[string]string{
+				"Contact": "<sip:outbound@" + ua.addr.String() + ">",
+			}, "")
+		case strings.HasPrefix(req, "ACK "):
+			ackCh <- req
+		}
+		return ""
+	})
+
+	cfg := config.Default()
+	cfg.Trunks = []config.TrunkConfig{{
+		Name: "uplink", Host: "127.0.0.1", Port: provider.addr.Port,
+		Username: "gw", Password: "x",
+		CallerID: "+36199999999", // fallback — the route must win
+	}}
+	cfg.OutboundRoutes = []config.OutboundRoute{{
+		Name: "local", Pattern: "0*", Trunk: "uplink", PrefixStrip: 1,
+		CallerID: "+36125550001",
+	}}
+	srv, srvAddr := startTrunkServer(t, cfg)
+	waitTrunk(t, srv, "uplink", TrunkStateRegistered, 5*time.Second)
+
+	caller := newTestUA(t)
+	caller.send(invite("cid-out", "100", "06301234567", caller.addr, srvAddr), srvAddr)
+
+	// The route's callerid is presented to the trunk, tag preserved so the
+	// trunk's dialog matching keeps working; the route beats the trunk's
+	// own fallback callerid.
+	inv := recvCh(t, inviteCh, "INVITE at the trunk")
+	from := headerValue(inv, "From")
+	if !strings.Contains(from, "+36125550001") {
+		t.Errorf("outbound caller ID not set: %s", from)
+	}
+	if !strings.Contains(from, "tag=from-cid-out") {
+		t.Errorf("From tag lost in rewrite: %s", from)
+	}
+	if strings.Contains(from, "sip:100@") {
+		t.Errorf("original caller leaked to the trunk: %s", from)
+	}
+
+	// The answer mirrors the caller's own request back — the rewrite must
+	// not leak into responses (RFC 3261 §8.2.6.2).
+	resp := caller.expect("SIP/2.0 200", 2*time.Second)
+	if rf := headerValue(resp, "From"); !strings.Contains(rf, "sip:100@") {
+		t.Errorf("response to caller must keep its From, got %s", rf)
+	}
+
+	// The dialog continues with the same caller ID toward the trunk.
+	caller.send(ackOrBye("ACK", "cid-out", "100", "6301234567", caller.addr, srvAddr, 1), srvAddr)
+	ack := recvCh(t, ackCh, "ACK at the trunk")
+	if af := headerValue(ack, "From"); !strings.Contains(af, "+36125550001") {
+		t.Errorf("ACK toward trunk lost the caller ID: %s", af)
+	}
+}
+
+func TestOutboundCallerIDTrunkFallback(t *testing.T) {
+	inviteCh := make(chan string, 4)
+	provider := startRegistrar(t, func(req string, ua *testUA) string {
+		if strings.HasPrefix(req, "REGISTER") {
+			return respTo(req, 200, "OK", map[string]string{"Expires": "60"}, "")
+		}
+		if strings.HasPrefix(req, "INVITE") {
+			inviteCh <- req
+			return respTo(req, 200, "OK", map[string]string{
+				"Contact": "<sip:outbound@" + ua.addr.String() + ">",
+			}, "")
+		}
+		return ""
+	})
+
+	cfg := config.Default()
+	cfg.Trunks = []config.TrunkConfig{{
+		Name: "uplink", Host: "127.0.0.1", Port: provider.addr.Port,
+		Username: "gw", Password: "x",
+		CallerID: "+36199999999",
+	}}
+	cfg.OutboundRoutes = []config.OutboundRoute{{
+		Name: "local", Pattern: "0*", Trunk: "uplink", PrefixStrip: 1,
+		// no callerid — the trunk's own fallback applies
+	}}
+	srv, srvAddr := startTrunkServer(t, cfg)
+	waitTrunk(t, srv, "uplink", TrunkStateRegistered, 5*time.Second)
+
+	caller := newTestUA(t)
+	caller.send(invite("cid-fb", "100", "06301234567", caller.addr, srvAddr), srvAddr)
+
+	inv := recvCh(t, inviteCh, "INVITE at the trunk")
+	if from := headerValue(inv, "From"); !strings.Contains(from, "+36199999999") {
+		t.Errorf("trunk callerid fallback not applied: %s", from)
+	}
+}
+
+func TestInboundCIDRewrite(t *testing.T) {
+	provider := newTestUA(t) // the source of inbound calls, configured as trunk
+	ext201 := newTestUA(t)
+
+	cfg := config.Default()
+	cfg.Trunks = []config.TrunkConfig{{
+		Name: "in", Host: "127.0.0.1", Port: provider.addr.Port,
+		Enabled: config.Bool(false),
+	}}
+	cfg.InboundRoutes = []config.InboundRoute{{
+		Name: "did201", DID: "3612*", Trunk: "in", Destination: "201",
+		// "06301234567" → strip "06" → prefix "+36" → "+36301234567"
+		CIDStrip: 2, CIDPrefix: "+36",
+	}}
+	srv, srvAddr := startTrunkServer(t, cfg)
+	waitTrunk(t, srv, "in", TrunkStateDisabled, 3*time.Second)
+	ext201.register("201", srvAddr)
+
+	// The trunk presents a national number; the extension must see the
+	// rewritten E.164 number, with the dialog tag preserved.
+	provider.send(invite("cid-in", "06301234567", "361234567", provider.addr, srvAddr), srvAddr)
+	inv := ext201.expect("INVITE", 2*time.Second)
+	from := headerValue(inv, "From")
+	if !strings.Contains(from, "+36301234567") {
+		t.Errorf("caller ID not rewritten: %s", from)
+	}
+	if !strings.Contains(from, "tag=from-cid-in") {
+		t.Errorf("From tag lost in rewrite: %s", from)
+	}
+	if strings.Contains(from, "06301234567") {
+		t.Errorf("original number still present for the extension: %s", from)
+	}
+
+	// The response back to the trunk mirrors the trunk's own INVITE —
+	// the rewrite stays on the callee leg (RFC 3261 §8.2.6.2).
+	ext201.send(respond(inv, 200, "OK", "201", ext201), srvAddr)
+	resp := provider.expect("SIP/2.0 200", 2*time.Second)
+	rf := headerValue(resp, "From")
+	if !strings.Contains(rf, "06301234567") {
+		t.Errorf("response to trunk must keep its From, got %s", rf)
+	}
+	if strings.Contains(rf, "+3630") {
+		t.Errorf("rewrite leaked into the response to the trunk: %s", rf)
+	}
+}
+
+// ---- caller ID helpers (GOBELISK-23) ----
+
+func TestSetFromUser(t *testing.T) {
+	cases := []struct{ from, user, want string }{
+		{`<sip:100@1.2.3.4>;tag=t1`, "+3612", `<sip:+3612@1.2.3.4>;tag=t1`},
+		{`"Alice" <sip:100@1.2.3.4>;tag=t1`, "+3612", `"Alice" <sip:+3612@1.2.3.4>;tag=t1`},
+		{`sip:100@host;tag=t`, "200", `sip:200@host;tag=t`},
+		{`<sips:100@host>;tag=t`, "200", `<sips:200@host>;tag=t`},
+		{"", "200", ""},
+		{`<sip:100@host>;tag=t`, "", `<sip:100@host>;tag=t`},
+		{`not a uri`, "200", `not a uri`},
+	}
+	for _, c := range cases {
+		if got := setFromUser(c.from, c.user); got != c.want {
+			t.Errorf("setFromUser(%q, %q) = %q, want %q", c.from, c.user, got, c.want)
+		}
+	}
+}
+
+func TestInboundCIDFrom(t *testing.T) {
+	r := config.InboundRoute{CIDStrip: 2, CIDPrefix: "+36"}
+	got := inboundCIDFrom(`<sip:06301234567@1.2.3.4>;tag=t1`, r)
+	want := `<sip:+36301234567@1.2.3.4>;tag=t1`
+	if got != want {
+		t.Errorf("inboundCIDFrom = %q, want %q", got, want)
+	}
+	// No manipulation configured → no rewrite.
+	if got := inboundCIDFrom(`<sip:100@h>;tag=t`, config.InboundRoute{}); got != "" {
+		t.Errorf("expected no rewrite, got %q", got)
+	}
+	// Stripping everything would leave an empty user part → keep the
+	// original From instead of presenting an empty user.
+	if got := inboundCIDFrom(`<sip:12@h>;tag=t`, config.InboundRoute{CIDStrip: 5}); got != "" {
+		t.Errorf("expected no rewrite on over-strip, got %q", got)
+	}
 }

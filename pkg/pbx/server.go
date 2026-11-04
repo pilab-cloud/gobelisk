@@ -160,6 +160,12 @@ type Call struct {
 	Virtual bool
 	// Group is the ring group name while a group call is being set up.
 	Group string
+	// calleeFrom is the From header presented on the callee leg when caller
+	// ID manipulation applies (GOBELISK-23): the inbound route's rewrite for
+	// trunk-sourced calls, the outbound route/trunk callerid for calls that
+	// leave on a trunk. Empty = the callee leg keeps the original From.
+	// Only the user part ever changes — the dialog tag is preserved.
+	calleeFrom string
 
 	mu       sync.Mutex
 	branches map[string]*ringBranch // top Via branch -> forked INVITE target
@@ -1198,9 +1204,12 @@ func (s *Server) handleInvite(m sipMsg) {
 	}
 
 	// Inbound routes (GOBELISK-20): calls arriving on a trunk are routed
-	// by DID instead of the dialed number itself.
-	if dest, ok := s.inboundDestination(m, dialed); ok {
+	// by DID instead of the dialed number itself. The matched route may
+	// also rewrite the caller ID the destination sees (GOBELISK-23).
+	inboundFrom := ""
+	if dest, route, ok := s.inboundDestination(m, dialed); ok {
 		dialed = dest
+		inboundFrom = inboundCIDFrom(getHeader(req, "From"), route)
 	}
 
 	fromHeader := getHeader(req, "From")
@@ -1215,8 +1224,17 @@ routing:
 		if !ok {
 			return
 		}
+
+		// From presented on this attempt's callee leg (GOBELISK-23): the
+		// inbound route's rewrite persists across forwarding hops; an
+		// outbound route/trunk callerid applies to the trunk leg.
+		calleeFrom := inboundFrom
+		if res.trunk != nil && res.callerID != "" {
+			calleeFrom = setFromUser(fromHeader, res.callerID)
+		}
+
 		if res.ringGroup != "" {
-			s.handleRingGroupInvite(m, res.ringGroup)
+			s.handleRingGroupInvite(m, res.ringGroup, calleeFrom)
 			return
 		}
 		if res.parkEmpty {
@@ -1258,6 +1276,7 @@ routing:
 				CallerExt:     userFromURI(fromHeader),
 				CallerTag:     tagOf(fromHeader),
 				CallerContact: getHeader(req, "Contact"),
+				calleeFrom:    calleeFrom,
 			}
 			s.callMu.Lock()
 			s.calls[callID] = call
@@ -1265,10 +1284,17 @@ routing:
 		} else {
 			call.CalleeExt = res.calleeExt
 			call.CalleeAddr = addr
+			call.calleeFrom = calleeFrom
 		}
 
 		extraHeaders := map[string]string{
 			"Contact": s.serverContact(),
+		}
+		// Present the manipulated caller ID to the callee leg only;
+		// responses back to the caller always mirror the caller's own
+		// request (GOBELISK-23).
+		if calleeFrom != "" {
+			extraHeaders["From"] = calleeFrom
 		}
 		// RFC 3891: Replaces may arrive as a URI parameter; convert it into a
 		// header for the next hop (GOBELISK-11).
@@ -1378,7 +1404,7 @@ routing:
 					Str("callee", res.calleeExt).
 					Str("to", res.fwd.NoAnswer).
 					Msg("no answer, forwarding")
-				s.cancelForwardedInvite(reqURI, addr, branch, req)
+				s.cancelForwardedInvite(reqURI, addr, branch, req, calleeFrom)
 				s.removePending(branch)
 				dialed = res.fwd.NoAnswer
 				hops++
@@ -1400,7 +1426,7 @@ routing:
 
 // handleRingGroupInvite forks an incoming INVITE to the available members of a
 // ring group and bridges the caller to the first member that answers.
-func (s *Server) handleRingGroupInvite(m sipMsg, name string) {
+func (s *Server) handleRingGroupInvite(m sipMsg, name, calleeFrom string) {
 	req := m.msg
 	callID := getHeader(req, "Call-ID")
 
@@ -1456,6 +1482,7 @@ func (s *Server) handleRingGroupInvite(m sipMsg, name string) {
 		CallerExt:     userFromURI(getHeader(req, "From")),
 		CallerTag:     tagOf(getHeader(req, "From")),
 		CallerContact: getHeader(req, "Contact"),
+		calleeFrom:    calleeFrom,
 		ringCh:        make(chan ringBranchResp, 256),
 		cancelCh:      make(chan struct{}),
 	}
@@ -1581,7 +1608,7 @@ func (s *Server) ringSequential(m sipMsg, call *Call, members []*Registration) (
 		}
 		// Only still-ringing branches need a CANCEL.
 		if !final {
-			s.cancelRingBranch(req, br)
+			s.cancelRingBranch(req, br, call.calleeFrom)
 		}
 	}
 	return nil, nil
@@ -1595,26 +1622,35 @@ func (s *Server) sendRingInvite(req *sip.RawMessage, call *Call, reg *Registrati
 	call.addBranch(br)
 
 	uri := fmt.Sprintf("sip:%s@%s", reg.Ext, reg.Addr.String())
-	msg := buildRequest("INVITE", uri, req, map[string]string{
+	hdrs := map[string]string{
 		"Via":     serverVia,
 		"Contact": fmt.Sprintf("<sip:server@%s:%d>", s.host, s.port),
-	}, req.Body)
+	}
+	// Forked INVITEs are callee legs: they present the manipulated caller
+	// ID like any other callee dialog (GOBELISK-23).
+	if call.calleeFrom != "" {
+		hdrs["From"] = call.calleeFrom
+	}
+	msg := buildRequest("INVITE", uri, req, hdrs, req.Body)
 
 	s.log.Debug().Str("callID", call.CallID).Str("callee", reg.Ext).Msg("ringing group member")
 	s.sendRaw(reg.Addr, msg)
 	return br
 }
 
-// cancelRingBranch stops one ringing branch.
-func (s *Server) cancelRingBranch(req *sip.RawMessage, br *ringBranch) {
+// cancelRingBranch stops one ringing branch. from mirrors the From of the
+// forked INVITE it cancels (GOBELISK-23).
+func (s *Server) cancelRingBranch(req *sip.RawMessage, br *ringBranch, from string) {
 	if br == nil || br.Addr == nil {
 		return
 	}
 	serverVia := fmt.Sprintf("SIP/2.0/UDP %s:%d;branch=%s", s.host, s.port, br.Via)
 	uri := fmt.Sprintf("sip:%s@%s", br.Ext, br.Addr.String())
-	msg := buildRequest("CANCEL", uri, req, map[string]string{
-		"Via": serverVia,
-	}, "")
+	hdrs := map[string]string{"Via": serverVia}
+	if from != "" {
+		hdrs["From"] = from
+	}
+	msg := buildRequest("CANCEL", uri, req, hdrs, "")
 	s.sendRaw(br.Addr, msg)
 }
 
@@ -1624,7 +1660,7 @@ func (s *Server) cancelRingBranches(req *sip.RawMessage, call *Call, keep *ringB
 		if br == keep {
 			continue
 		}
-		s.cancelRingBranch(req, br)
+		s.cancelRingBranch(req, br, call.calleeFrom)
 	}
 }
 
@@ -1669,9 +1705,13 @@ func (s *Server) handleAck(m sipMsg) {
 	}
 	branch := newBranch()
 	serverVia := fmt.Sprintf("SIP/2.0/UDP %s:%d;branch=%s", s.host, s.port, branch)
-	msg := buildRequest("ACK", uri, req, map[string]string{
-		"Via": serverVia,
-	}, "")
+	hdrs := map[string]string{"Via": serverVia}
+	// Requests forwarded to the callee leg present the manipulated caller
+	// ID, matching the INVITE that created that dialog (GOBELISK-23).
+	if leg == "caller" && call.calleeFrom != "" {
+		hdrs["From"] = call.calleeFrom
+	}
+	msg := buildRequest("ACK", uri, req, hdrs, "")
 	s.sendRaw(other, msg)
 }
 
@@ -1726,9 +1766,13 @@ func (s *Server) handleBye(m sipMsg) {
 			}
 			branch := newBranch()
 			serverVia := fmt.Sprintf("SIP/2.0/UDP %s:%d;branch=%s", s.host, s.port, branch)
-			msg := buildRequest("BYE", uri, req, map[string]string{
-				"Via": serverVia,
-			}, "")
+			hdrs := map[string]string{"Via": serverVia}
+			// A BYE toward the callee leg keeps the caller ID the callee
+			// saw when the dialog was created (GOBELISK-23).
+			if targetLeg == "callee" && call.calleeFrom != "" {
+				hdrs["From"] = call.calleeFrom
+			}
+			msg := buildRequest("BYE", uri, req, hdrs, "")
 			s.sendRaw(other, msg)
 		}
 		s.removeCall(callID)
@@ -1753,9 +1797,11 @@ func (s *Server) handleCancel(m sipMsg) {
 		branch := fmt.Sprintf("z9hG4bK%d", time.Now().UnixNano())
 		serverVia := fmt.Sprintf("SIP/2.0/UDP %s:%d;branch=%s", s.host, s.port, branch)
 		uri := fmt.Sprintf("sip:%s@%s", call.CalleeExt, call.CalleeAddr.String())
-		msg := buildRequest("CANCEL", uri, req, map[string]string{
-			"Via": serverVia,
-		}, "")
+		hdrs := map[string]string{"Via": serverVia}
+		if call.calleeFrom != "" {
+			hdrs["From"] = call.calleeFrom
+		}
+		msg := buildRequest("CANCEL", uri, req, hdrs, "")
 		s.sendRaw(call.CalleeAddr, msg)
 
 		// send 487 to caller for original invite
@@ -2012,9 +2058,13 @@ func buildResponseFromRaw(resp *sip.RawMessage, req *sip.RawMessage, contactOver
 		fmt.Fprintf(&b, "Via: %s\r\n", v)
 	}
 
-	from := getHeader(resp, "From")
+	// The response goes back to the sender of req, so it must carry req's
+	// From verbatim (RFC 3261 §8.2.6.2) — resp's copy only matters when req
+	// has none. This keeps caller ID manipulation on the callee leg from
+	// leaking into responses to the caller (GOBELISK-23).
+	from := getHeader(req, "From")
 	if from == "" {
-		from = getHeader(req, "From")
+		from = getHeader(resp, "From")
 	}
 	fmt.Fprintf(&b, "From: %s\r\n", from)
 
@@ -2090,7 +2140,9 @@ func buildRequest(method, uri string, orig *sip.RawMessage, overrides map[string
 		fmt.Fprintf(&b, "Max-Forwards: 70\r\n")
 	}
 
-	if v := getHeader(orig, "From"); v != "" {
+	if v, ok := overrides["From"]; ok && v != "" {
+		fmt.Fprintf(&b, "From: %s\r\n", v)
+	} else if v := getHeader(orig, "From"); v != "" {
 		fmt.Fprintf(&b, "From: %s\r\n", v)
 	}
 	if v := getHeader(orig, "To"); v != "" {
@@ -2116,7 +2168,7 @@ func buildRequest(method, uri string, orig *sip.RawMessage, overrides map[string
 	// Any other supplied header (for example Alert-Info) is passed through.
 	for k, v := range overrides {
 		switch k {
-		case "Via", "Max-Forwards", "Contact":
+		case "Via", "Max-Forwards", "Contact", "From":
 			continue
 		}
 		fmt.Fprintf(&b, "%s: %s\r\n", k, v)

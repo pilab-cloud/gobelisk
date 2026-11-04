@@ -36,8 +36,10 @@ func startTrunkServer(t *testing.T, cfg *config.Config) (*Server, *net.UDPAddr) 
 }
 
 // startRegistrar runs a fake SIP provider: handler returns the response to
-// send ("" to ignore the request).
-func startRegistrar(t *testing.T, handler func(req string) string) *testUA {
+// send ("" to ignore the request). The UA is passed to the handler so the
+// handler never captures the variable the return value is assigned to —
+// that would race with the receiver goroutine (no happens-before edge).
+func startRegistrar(t *testing.T, handler func(req string, ua *testUA) string) *testUA {
 	t.Helper()
 	ua := newTestUA(t)
 	stop := make(chan struct{})
@@ -55,7 +57,7 @@ func startRegistrar(t *testing.T, handler func(req string) string) *testUA {
 					continue
 				}
 			}
-			if resp := handler(string(buf[:n])); resp != "" {
+			if resp := handler(string(buf[:n]), ua); resp != "" {
 				_, _ = ua.conn.WriteToUDP([]byte(resp), from)
 			}
 		}
@@ -121,7 +123,7 @@ func waitTrunkGone(t *testing.T, s *Server, name string, timeout time.Duration) 
 func TestTrunkRegistersWithDigestChallenge(t *testing.T) {
 	var plain, authed int32
 	authCh := make(chan string, 4)
-	registrar := startRegistrar(t, func(req string) string {
+	registrar := startRegistrar(t, func(req string, _ *testUA) string {
 		if !strings.HasPrefix(req, "REGISTER") {
 			return ""
 		}
@@ -197,7 +199,7 @@ func TestTrunkRegistersWithDigestChallenge(t *testing.T) {
 
 func TestTrunkRegisterRenews(t *testing.T) {
 	var registers int32
-	registrar := startRegistrar(t, func(req string) string {
+	registrar := startRegistrar(t, func(req string, _ *testUA) string {
 		if !strings.HasPrefix(req, "REGISTER") {
 			return ""
 		}
@@ -226,7 +228,7 @@ func TestTrunkRegisterRenews(t *testing.T) {
 }
 
 func TestTrunkAuthFailureRaisesAlert(t *testing.T) {
-	registrar := startRegistrar(t, func(req string) string {
+	registrar := startRegistrar(t, func(req string, _ *testUA) string {
 		if !strings.HasPrefix(req, "REGISTER") {
 			return ""
 		}
@@ -259,7 +261,7 @@ func TestTrunkAuthFailureRaisesAlert(t *testing.T) {
 
 func TestTrunkHealthCheckRuns(t *testing.T) {
 	optsCh := make(chan struct{}, 8)
-	registrar := startRegistrar(t, func(req string) string {
+	registrar := startRegistrar(t, func(req string, _ *testUA) string {
 		switch {
 		case strings.HasPrefix(req, "REGISTER"):
 			return respTo(req, 200, "OK", map[string]string{"Expires": "60"}, "")
@@ -299,7 +301,7 @@ func TestTrunkHealthCheckRuns(t *testing.T) {
 // ---- provisioning (GOBELISK-24) ----
 
 func TestTrunkProvisioningRPC(t *testing.T) {
-	registrar := startRegistrar(t, func(req string) string {
+	registrar := startRegistrar(t, func(req string, _ *testUA) string {
 		if strings.HasPrefix(req, "REGISTER") {
 			return respTo(req, 200, "OK", map[string]string{"Expires": "60"}, "")
 		}

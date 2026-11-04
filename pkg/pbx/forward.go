@@ -33,9 +33,11 @@ type dialResult struct {
 	parkSlot  int
 	parkEmpty bool
 	// trunk is set when the call goes out on an outbound route: dialNumber
-	// is the number to dial after prefix stripping (GOBELISK-21/22).
+	// is the number to dial after prefix stripping (GOBELISK-21/22), and
+	// callerID is the From user presented to the trunk (GOBELISK-23).
 	trunk      *trunkState
 	dialNumber string
+	callerID   string
 }
 
 // dndEnabled reports whether ext has Do Not Disturb on. The runtime set is
@@ -57,8 +59,9 @@ func (s *Server) forwardConfig(ext string) config.ForwardConfig {
 // outboundDial picks the trunk for a dialed number (GOBELISK-21 /
 // GOBELISK-22): every matching route whose trunk is dialable, ranked by
 // cost — lower wins, ties keep the config order. Returns the trunk, the
-// number after prefix stripping and the route name.
-func (s *Server) outboundDial(dialed string) (*trunkState, string, string, bool) {
+// number after prefix stripping and the winning route (its callerid feeds
+// the outbound caller ID, GOBELISK-23).
+func (s *Server) outboundDial(dialed string) (*trunkState, string, config.OutboundRoute, bool) {
 	s.trunkMu.Lock()
 	defer s.trunkMu.Unlock()
 
@@ -79,7 +82,7 @@ func (s *Server) outboundDial(dialed string) (*trunkState, string, string, bool)
 		candidates = append(candidates, candidate{route: r, st: st})
 	}
 	if len(candidates) == 0 {
-		return nil, "", "", false
+		return nil, "", config.OutboundRoute{}, false
 	}
 	sort.SliceStable(candidates, func(i, j int) bool {
 		return candidates[i].route.Cost < candidates[j].route.Cost
@@ -90,11 +93,11 @@ func (s *Server) outboundDial(dialed string) (*trunkState, string, string, bool)
 	if n := best.route.PrefixStrip; n > 0 {
 		if n >= len(number) {
 			s.log.Warn().Str("route", best.route.Name).Str("dialed", dialed).Msg("prefix strip removes the whole number")
-			return nil, "", "", false
+			return nil, "", config.OutboundRoute{}, false
 		}
 		number = number[n:]
 	}
-	return best.st, number, best.route.Name, true
+	return best.st, number, best.route, true
 }
 
 // resolveCallee routes a dialed number through the dialplan and the
@@ -173,18 +176,25 @@ func (s *Server) resolveCallee(m sipMsg, dialed string, hops *int) (*dialResult,
 			// FROM a trunk never hairpin back out.
 			if (target.Type == dialplan.TargetExtension || target.Type == dialplan.TargetUnknown) &&
 				s.trunkByAddr(m.addr) == nil {
-				if tr, number, routeName, ok := s.outboundDial(dialed); ok {
+				if tr, number, route, ok := s.outboundDial(dialed); ok {
 					s.log.Info().
 						Str("dialed", dialed).
-						Str("route", routeName).
+						Str("route", route.Name).
 						Str("trunk", tr.cfg.Name).
 						Str("number", number).
 						Msg("outbound route")
+					// Caller ID presented to the trunk (GOBELISK-23):
+					// the route's callerid wins, the trunk's is the fallback.
+					cid := route.CallerID
+					if cid == "" {
+						cid = tr.cfg.CallerID
+					}
 					return &dialResult{
 						target:     target,
 						calleeExt:  tr.cfg.Name,
 						trunk:      tr,
 						dialNumber: number,
+						callerID:   cid,
 					}, true
 				}
 			}
@@ -235,12 +245,15 @@ func (s *Server) resolveCallee(m sipMsg, dialed string, hops *int) (*dialResult,
 
 // cancelForwardedInvite cancels a ringing leg this server forwarded. It
 // reuses the INVITE's Via branch, because CANCEL is matched to the INVITE
-// transaction by branch (RFC 3261 §9.1) (GOBELISK-15).
-func (s *Server) cancelForwardedInvite(uri string, addr *net.UDPAddr, branch string, orig *sip.RawMessage) {
+// transaction by branch (RFC 3261 §9.1). from overrides the From header so
+// the CANCEL mirrors the INVITE it cancels (GOBELISK-23).
+func (s *Server) cancelForwardedInvite(uri string, addr *net.UDPAddr, branch string, orig *sip.RawMessage, from string) {
 	serverVia := "SIP/2.0/UDP " + s.host + ":" + strconv.Itoa(s.port) + ";branch=" + branch
-	msg := buildRequest("CANCEL", uri, orig, map[string]string{
-		"Via": serverVia,
-	}, "")
+	hdrs := map[string]string{"Via": serverVia}
+	if from != "" {
+		hdrs["From"] = from
+	}
+	msg := buildRequest("CANCEL", uri, orig, hdrs, "")
 	s.log.Debug().Str("uri", uri).Str("branch", branch).Msg("cancelling unanswered leg")
 	s.sendRaw(addr, msg)
 }

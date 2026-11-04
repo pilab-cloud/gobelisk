@@ -75,21 +75,27 @@ trunks: []
 # Outbound routes (GOBELISK-21 / GOBELISK-22): pattern -> trunk, lowest
 # cost wins (ties keep this order). Patterns are exact digits or a
 # trailing-* prefix ("0*" matches 0630...); prefix_strip removes leading
-# digits before dialing the trunk.
+# digits before dialing the trunk. callerid (GOBELISK-23) is presented as
+# the From user to the trunk; empty falls back to the trunk's callerid.
 outbound_routes: []
 #  - name: budapest-out
 #    pattern: "0*"
 #    trunk: uplink
 #    prefix_strip: 1
 #    cost: 10
+#    callerid: "+3612345678"
 
 # Inbound routes (GOBELISK-20): DID -> destination for calls arriving on
 # a trunk (trunk empty = any trunk). DID patterns match like outbound.
+# cid_strip / cid_prefix (GOBELISK-23) rewrite the caller ID the
+# destination sees: strip leading digits, then prepend.
 inbound_routes: []
 #  - name: did-sales
 #    did: "3612345*"
 #    trunk: uplink
 #    destination: "200"
+#    cid_strip: 2
+#    cid_prefix: "+36"
 
 # Local AI Voice Customer Service Stack (100% Local Inference on Quadro T2000 GPU)
 voice_agent:

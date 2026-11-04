@@ -73,7 +73,8 @@ type TrunkConfig struct {
 	Password string `yaml:"password"`
 	// FromDomain is the domain in From/To/Request-URI; defaults to Host.
 	FromDomain string `yaml:"from_domain"`
-	// CallerID overrides the From user part when set.
+	// CallerID overrides the From user part of outbound calls when set
+	// (GOBELISK-23); an outbound route may set its own to win over this.
 	CallerID string `yaml:"callerid"`
 	// Enabled (default true) turns registration on or off.
 	Enabled *bool `yaml:"enabled"`
@@ -280,6 +281,10 @@ type OutboundRoute struct {
 	// Cost ranks routes for least-cost routing: lower wins, ties keep the
 	// config order (GOBELISK-22).
 	Cost int `yaml:"cost"`
+	// CallerID overrides the From user part presented to the trunk when
+	// set (GOBELISK-23); empty falls back to the trunk's callerid, then
+	// to the original caller.
+	CallerID string `yaml:"callerid"`
 }
 
 // Match reports whether dialed goes out on this route.
@@ -295,6 +300,11 @@ type InboundRoute struct {
 	Trunk string `yaml:"trunk"`
 	// Destination is a dialable target: extension, ring group, IVR menu...
 	Destination string `yaml:"destination"`
+	// CIDStrip removes that many leading digits from the caller's number
+	// and CIDPrefix is prepended afterwards, so the destination sees the
+	// rewritten caller ID (GOBELISK-23). Both zero = no rewrite.
+	CIDStrip  int    `yaml:"cid_strip"`
+	CIDPrefix string `yaml:"cid_prefix"`
 }
 
 // Match reports whether this DID belongs to the route.
