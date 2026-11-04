@@ -35,7 +35,7 @@ Gobelisk is a free, modern, and extensible PBX server built from the ground up i
 | **IVR Menus**               | ✅ Stable | Interactive Voice Response with DTMF collection                  |
 | **Extension Management**    | ✅ Stable | Full CRUD operations via gRPC API                                |
 | **Room/Conference Support** | ✅ Stable | Basic conferencing with participant tracking                     |
-| **Voicemail**               | 🟡 Beta   | Voicemail infrastructure with transcription support              |
+| **Voicemail**               | 🟡 Beta   | Voicemail infrastructure; speech via the pluggable engine         |
 | **Call Transfer**           | 🚧 WIP    | Attended and blind transfer capabilities                         |
 | **Call Center (ACD)**       | 🚧 WIP    | Queue management and agent routing                               |
 | **Trunk Management**        | 🚧 WIP    | SIP trunk provisioning and routing                               |
@@ -95,8 +95,36 @@ Gobelisk is built with a modular architecture, separating concerns for maximum f
 - **`pkg/dialplan/`** - Call routing and dialplan engine
 - **`pkg/ivr/`** - Interactive Voice Response system
 - **`pkg/rooms/`** - Conference room management
+- **`pkg/speech/`** - Pluggable speech-to-text / text-to-speech engine (no-op by default)
 - **`cmd/`** - CLI commands and entry points
 - **`proto/`** - gRPC API definitions
+
+### Speech engine (optional)
+
+The core binary performs no AI work. `pkg/speech` defines a small pluggable
+interface and ships a no-op implementation:
+
+```go
+type Engine interface {
+    Transcribe(audioPath string) (string, error)
+    Synthesize(text, outputPath, voice string) error
+}
+```
+
+An implementation registers itself under a name and is selected in
+`gobelisk.yaml`:
+
+```yaml
+speech:
+  engine: whisper-piper
+  options: { ... }
+```
+
+The reference implementation (Whisper ASR + Piper TTS) lives in the separate
+[gobelisk-ai](https://github.com/pilab-cloud/gobelisk-ai) project. It builds its
+own binary that blank-imports the engine package and reuses this CLI; embedders
+can also inject an engine directly with `pbx.WithSpeechEngine(...)`.
+
 
 ## 🤝 Contributing
 

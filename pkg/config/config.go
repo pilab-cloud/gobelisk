@@ -245,6 +245,7 @@ type Config struct {
 	DialPlan          string        `yaml:"dialplan"`
 	MeetingServiceURL string        `yaml:"meeting_service_url"`
 	MeetingBridgeExt  string        `yaml:"meeting_bridge_ext"`
+	Speech            SpeechConfig  `yaml:"speech"`
 	// Trunks are the provisioned SIP/PSTN/IAX trunks (GOBELISK-24). The
 	// config file is the durable store; management-RPC edits apply until
 	// the next reload.

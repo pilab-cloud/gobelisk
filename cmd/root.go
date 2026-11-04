@@ -34,6 +34,7 @@ import (
 	"github.com/devopshaven/gobelisk/pkg/rooms"
 	"github.com/devopshaven/gobelisk/pkg/sip"
 	"github.com/devopshaven/gobelisk/pkg/sip/auth"
+	"github.com/devopshaven/gobelisk/pkg/speech"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -70,6 +71,14 @@ func StartServer(cmd *cobra.Command, args []string) {
 		log.Fatal().Err(err).Msg("failed to load config")
 	}
 
+	speechEngine, err := speech.New(cfg.Speech.Engine, cfg.Speech.Options)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to initialize speech engine")
+	}
+	if cfg.Speech.Engine != "" && cfg.Speech.Engine != "noop" {
+		log.Info().Str("engine", cfg.Speech.Engine).Msg("speech engine initialized")
+	}
+
 	var authenticator auth.Authenticator = auth.NoneAuthenticator{}
 	if cfg.Auth.Type == "digest" {
 		authenticator = auth.BuildDefaultAuthenticator()
@@ -93,6 +102,7 @@ func StartServer(cmd *cobra.Command, args []string) {
 		pbx.WithConfig(cfg),
 		pbx.WithConfigPath(cfgFile),
 		pbx.WithRPCPort(cfg.Server.GRPCPort),
+		pbx.WithSpeechEngine(speechEngine),
 	)
 	server.Start()
 

@@ -79,3 +79,35 @@ func TestLoadGobeliskYAML(t *testing.T) {
 		t.Fatalf("failed to load root gobelisk.yaml: %v", err)
 	}
 }
+
+func TestLoadSpeechConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	data := "speech:\n" +
+		"  engine: whisper-piper\n" +
+		"  options:\n" +
+		"    asr:\n" +
+		"      language: hu\n" +
+		"      timeout_seconds: 12\n"
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	c, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if c.Speech.Engine != "whisper-piper" {
+		t.Errorf("Speech.Engine = %q, want whisper-piper", c.Speech.Engine)
+	}
+	asr, ok := c.Speech.Options["asr"].(map[string]any)
+	if !ok {
+		t.Fatalf("Speech.Options[asr] = %T, want map[string]any", c.Speech.Options["asr"])
+	}
+	if asr["language"] != "hu" {
+		t.Errorf("asr.language = %v, want hu", asr["language"])
+	}
+	if asr["timeout_seconds"] != 12 {
+		t.Errorf("asr.timeout_seconds = %v, want 12", asr["timeout_seconds"])
+	}
+}

@@ -96,3 +96,25 @@ inbound_routes: []
 #    destination: "200"
 #    cid_strip: 2
 #    cid_prefix: "+36"
+
+# Pluggable speech-to-text / text-to-speech engine (optional).
+# The core build ships a no-op engine. AI implementations register themselves
+# with speech.Register and are selected here by name. Example for the
+# gobelisk-ai module:
+#
+# speech:
+#   engine: whisper-piper
+#   options:
+#     asr:
+#       # endpoint: http://127.0.0.1:8099   # preloaded whisper-server (recommended)
+#       model_path: /opt/whisper/models/ggml-large-v3-turbo-q5_0.bin
+#       device: "1"
+#       language: hu
+#       timeout_seconds: 120
+#     tts:
+#       command: piper
+#       model_path: /opt/piper/models/hu_HU-anna-medium.onnx
+#       voice: anna
+speech:
+  engine: ""
+  options: {}
