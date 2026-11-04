@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/chzyer/readline v1.5.1
-	github.com/icholy/digest v0.1.22
+	github.com/icholy/digest v1.2.0
 	github.com/rs/xid v1.5.0
 	github.com/rs/zerolog v1.32.0
 	github.com/spf13/cobra v1.8.0
