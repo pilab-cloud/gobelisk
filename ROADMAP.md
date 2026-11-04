@@ -53,13 +53,11 @@ Issue links point at the [PiR@ issue tracker](https://pira.hu) (`https://pira.hu
 - ✅ PIN collection per call
 - 🟡 PIN validation against Pir² meeting access codes
 - ❌ Nested/time-based IVR flows — [GOBELISK-28](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-28)
-- ✅ TTS/ASR prompts & Neural AI IVR (Piper TTS + Vulkan GPU Whisper + Qwen 3B Instruct) — [GOBELISK-29](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-29)
 - ❌ IVR recording — [GOBELISK-30](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-30)
 
 ## Voicemail
 
 - 🟡 Voicemail storage scaffold
-- ✅ Voicemail transcription via Whisper Large-v3-Turbo (GPU accelerated) — [GOBELISK-35](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-35)
 - 🟡 Email notification scaffold
 - ❌ Per-extension voicemail boxes — [GOBELISK-31](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-31)
 - ❌ Greetings (busy/unavailable) — [GOBELISK-32](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-32)
@@ -102,24 +100,6 @@ Issue links point at the [PiR@ issue tracker](https://pira.hu) (`https://pira.hu
 - ❌ RTP bridging to SFU peers — [GOBELISK-53](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-53)
 - ❌ Admission policy (auto-admit vs waiting room) — [GOBELISK-54](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-54)
 - ❌ End-to-end dial-in tests — [GOBELISK-55](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-55)
-
-## Voice agent
-
-Gobelisk hosts a GPU-backed voice agent that joins a Pir² meeting over WebRTC or acts as a local Hungarian AI customer service assistant
-(see [docs/voice-agent.md](docs/voice-agent.md) and [docs/ai-customer-service/README.md](docs/ai-customer-service/README.md)).
-
-- ✅ WebRTC agent joins the Pir² SFU with a service join grant
-- ✅ Opus in / PCMU out audio path with barge-in
-- ✅ Local GPU pipeline: Whisper Large-v3-Turbo (Vulkan compute) → Ollama LLM (Qwen2.5 1.5B/3B) → Piper Neural Hungarian TTS
-- ✅ Interactive WebRTC/WebSocket customer service web UI (`gobelisk web`) with live audio visualizer
-- ✅ Sliding-window real-time live captions & streaming speech transcription
-- ✅ Wake-word gating ("Maci") with phonetic aliasing table, prompt biasing & instant wake acknowledgement
-- ✅ Multi-turn conversational memory & acoustic feedback loop suppression
-- ✅ Fully decoupled configuration via `gobelisk.yaml`
-- ✅ Transcript export to the Pir² recorder
-- ✅ [Inviting the agent to a conversation](docs/invite-agent.md)
-- 🟡 Agent appears in the meeting roster / invitation UX
-- ❌ SIP call → voice agent bridge — [GOBELISK-53](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-53)
 
 ## System and admin
 

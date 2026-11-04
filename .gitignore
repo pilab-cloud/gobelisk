@@ -37,4 +37,3 @@ data/
 # Local tooling and runtime exports
 bin/
 .golangci.bck.yml
-pkg/voiceagent/transcripts/

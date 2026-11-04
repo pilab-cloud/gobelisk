@@ -39,7 +39,7 @@ import (
 	"github.com/devopshaven/gobelisk/pkg/rooms"
 	"github.com/devopshaven/gobelisk/pkg/sip"
 	"github.com/devopshaven/gobelisk/pkg/sip/auth"
-	"github.com/devopshaven/gobelisk/pkg/voicemail"
+	"github.com/devopshaven/gobelisk/pkg/speech"
 	"github.com/rs/zerolog"
 )
 
@@ -62,6 +62,7 @@ type Server struct {
 	rooms         *rooms.Manager
 	ivr           *ivr.Manager
 	meetingClient *meeting.Client
+	speech        speech.Engine
 
 	// ringState tracks round-robin / least-recent scheduling for ring groups.
 	ringState *ringgroup.State
@@ -304,6 +305,13 @@ func WithMeetingClient(c *meeting.Client) ServerOpts {
 	}
 }
 
+// WithSpeechEngine sets the speech-to-text / text-to-speech engine.
+func WithSpeechEngine(e speech.Engine) ServerOpts {
+	return func(s *Server) {
+		s.speech = e
+	}
+}
+
 // WithConfig sets the server configuration.
 func WithConfig(c *config.Config) ServerOpts {
 	return func(s *Server) {
@@ -366,6 +374,9 @@ func NewServer(opts ...ServerOpts) *Server {
 	}
 	if s.cfg == nil {
 		s.cfg = config.Default()
+	}
+	if s.speech == nil {
+		s.speech = speech.Noop{}
 	}
 	s.seedDND()
 	s.syncTrunks()
@@ -823,15 +834,6 @@ func (s *Server) OriginateCall(ctx context.Context, req *gobeliskv1.OriginateCal
 
 func (s *Server) GeneratePrompt(ctx context.Context, req *gobeliskv1.GeneratePromptRequest) (*gobeliskv1.GeneratePromptResponse, error) {
 	voice := req.Voice
-	cmd := ""
-	modelPath := ""
-	if s.cfg != nil {
-		if voice == "" {
-			voice = s.cfg.VoiceAgent.TTS.Voice
-		}
-		cmd = s.cfg.VoiceAgent.TTS.Command
-		modelPath = s.cfg.VoiceAgent.TTS.ModelPath
-	}
 	if voice == "" {
 		voice = "anna"
 	}
@@ -839,7 +841,7 @@ func (s *Server) GeneratePrompt(ctx context.Context, req *gobeliskv1.GeneratePro
 	if out == "" {
 		out = "/tmp/prompt.wav"
 	}
-	if err := voicemail.TTSWithConfig(req.Text, out, cmd, modelPath, voice); err != nil {
+	if err := s.speech.Synthesize(req.Text, out, voice); err != nil {
 		return nil, err
 	}
 	return &gobeliskv1.GeneratePromptResponse{Path: out}, nil
@@ -852,13 +854,7 @@ func (s *Server) TranscribeAudio(ctx context.Context, req *gobeliskv1.Transcribe
 		s.log.Warn().Err(err).Msg("ffmpeg conversion failed")
 		tmp = req.AudioPath
 	}
-	var modelPath, device, language string
-	if s.cfg != nil {
-		modelPath = s.cfg.VoiceAgent.ASR.ModelPath
-		device = s.cfg.VoiceAgent.ASR.Device
-		language = s.cfg.VoiceAgent.ASR.Language
-	}
-	text, err := voicemail.TranscribeWithConfig(tmp, modelPath, device, language)
+	text, err := s.speech.Transcribe(tmp)
 	if err != nil {
 		s.log.Warn().Err(err).Str("tmp", tmp).Msg("transcription failed")
 	}
