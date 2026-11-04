@@ -27,8 +27,25 @@ type pendingTx struct {
 	respond func(string) // relays a response to the originating leg
 	notify  chan *sip.RawMessage
 
+	// absorbChallenge marks a leg dialed out on a trunk: its 401/407 are a
+	// digest challenge for US to answer with a retry, never for the caller
+	// (GOBELISK-21).
+	absorbChallenge bool
+
 	lastResp *sip.RawMessage
 	touched  time.Time
+}
+
+// relayable reports whether a stored response may be replayed to the
+// originator (challenges on trunk legs may not — see absorbChallenge).
+func (tx *pendingTx) relayable(resp *sip.RawMessage) bool {
+	if resp == nil {
+		return false
+	}
+	if tx.absorbChallenge && (resp.StatusCode == 401 || resp.StatusCode == 407) {
+		return false
+	}
+	return true
 }
 
 // pendingKey identifies a transaction for retransmission absorption: the same
@@ -127,8 +144,9 @@ func (s *Server) relayPending(tx *pendingTx, resp *sip.RawMessage) {
 	}
 
 	// 100-level responses below 180 are useless to the originator: it already
-	// got our own 100 Trying.
-	if resp.StatusCode >= 180 {
+	// got our own 100 Trying. Digest challenges on trunk legs are ours to
+	// retry, not the caller's to see (GOBELISK-21).
+	if resp.StatusCode >= 180 && tx.relayable(resp) {
 		tx.respond(s.relayedResponse(resp, tx.orig))
 	}
 	tx.lastResp = resp

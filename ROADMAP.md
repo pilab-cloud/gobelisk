@@ -32,9 +32,9 @@ Issue links point at the [PiR@ issue tracker](https://pira.hu) (`https://pira.hu
 - ✅ Meeting mapping
 - ✅ IVR decision-language config
 - 🟡 Time conditions / time groups — [GOBELISK-19](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-19)
-- ❌ Inbound routes (DID → destination) — [GOBELISK-20](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-20)
-- ❌ Outbound routes (pattern → trunk) — [GOBELISK-21](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-21)
-- ❌ Trunk selection / least-cost routing — [GOBELISK-22](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-22)
+- ✅ Inbound routes (DID → destination) — [GOBELISK-20](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-20)
+- ✅ Outbound routes (pattern → trunk) — [GOBELISK-21](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-21)
+- ✅ Trunk selection / least-cost routing — [GOBELISK-22](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-22)
 - ❌ Caller ID manipulation — [GOBELISK-23](https://pira.hu/Projects/GOBELISK/Browse/GOBELISK-23)
 
 ## Extensions and trunks

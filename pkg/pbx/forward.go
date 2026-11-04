@@ -2,6 +2,7 @@ package pbx
 
 import (
 	"net"
+	"sort"
 	"strconv"
 	"time"
 
@@ -31,6 +32,10 @@ type dialResult struct {
 	parked    bool
 	parkSlot  int
 	parkEmpty bool
+	// trunk is set when the call goes out on an outbound route: dialNumber
+	// is the number to dial after prefix stripping (GOBELISK-21/22).
+	trunk      *trunkState
+	dialNumber string
 }
 
 // dndEnabled reports whether ext has Do Not Disturb on. The runtime set is
@@ -47,6 +52,49 @@ func (s *Server) forwardConfig(ext string) config.ForwardConfig {
 		return config.ForwardConfig{}
 	}
 	return s.cfg.Forward(ext)
+}
+
+// outboundDial picks the trunk for a dialed number (GOBELISK-21 /
+// GOBELISK-22): every matching route whose trunk is dialable, ranked by
+// cost — lower wins, ties keep the config order. Returns the trunk, the
+// number after prefix stripping and the route name.
+func (s *Server) outboundDial(dialed string) (*trunkState, string, string, bool) {
+	s.trunkMu.Lock()
+	defer s.trunkMu.Unlock()
+
+	type candidate struct {
+		route config.OutboundRoute
+		st    *trunkState
+	}
+	var candidates []candidate
+	for _, r := range s.cfg.OutboundRoutes {
+		if !r.Match(dialed) {
+			continue
+		}
+		st, ok := s.trunkStates[r.Trunk]
+		if !ok || !st.dialable() {
+			s.log.Debug().Str("route", r.Name).Str("trunk", r.Trunk).Msg("outbound route skipped: trunk unavailable")
+			continue
+		}
+		candidates = append(candidates, candidate{route: r, st: st})
+	}
+	if len(candidates) == 0 {
+		return nil, "", "", false
+	}
+	sort.SliceStable(candidates, func(i, j int) bool {
+		return candidates[i].route.Cost < candidates[j].route.Cost
+	})
+
+	best := candidates[0]
+	number := dialed
+	if n := best.route.PrefixStrip; n > 0 {
+		if n >= len(number) {
+			s.log.Warn().Str("route", best.route.Name).Str("dialed", dialed).Msg("prefix strip removes the whole number")
+			return nil, "", "", false
+		}
+		number = number[n:]
+	}
+	return best.st, number, best.route.Name, true
 }
 
 // resolveCallee routes a dialed number through the dialplan and the
@@ -118,6 +166,28 @@ func (s *Server) resolveCallee(m sipMsg, dialed string, hops *int) (*dialResult,
 				}, true
 			}
 			s.log.Warn().Str("callee", calleeExt).Msg("callee not registered")
+			// Outbound routes (GOBELISK-21 / GOBELISK-22): plain dialed
+			// numbers that no local endpoint owns fall through to the PSTN
+			// via the cheapest matching trunk. Explicit dialplan mappings
+			// (room/menu/meeting/service) stay local, and calls arriving
+			// FROM a trunk never hairpin back out.
+			if (target.Type == dialplan.TargetExtension || target.Type == dialplan.TargetUnknown) &&
+				s.trunkByAddr(m.addr) == nil {
+				if tr, number, routeName, ok := s.outboundDial(dialed); ok {
+					s.log.Info().
+						Str("dialed", dialed).
+						Str("route", routeName).
+						Str("trunk", tr.cfg.Name).
+						Str("number", number).
+						Msg("outbound route")
+					return &dialResult{
+						target:     target,
+						calleeExt:  tr.cfg.Name,
+						trunk:      tr,
+						dialNumber: number,
+					}, true
+				}
+			}
 			m.respond(buildResponse(req, 404, "Not Found", nil, ""))
 			return nil, false
 		}

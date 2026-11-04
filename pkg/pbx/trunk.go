@@ -197,6 +197,42 @@ func (st *trunkState) trunkURI() string {
 	return uri
 }
 
+// callURI is the Request-URI for an outbound call: the dialed number at the
+// trunk's domain (GOBELISK-21).
+func (st *trunkState) callURI(number string) string {
+	base := strings.TrimPrefix(st.trunkURI(), "sip:")
+	return "sip:" + number + "@" + base
+}
+
+// dialable reports whether calls may go out on this trunk: registration
+// disabled and unsupported protocols carry no traffic (GOBELISK-21).
+func (st *trunkState) dialable() bool {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return st.state != TrunkStateDisabled && st.state != TrunkStateUnsupported
+}
+
+// trunkByAddr finds the provisioned trunk whose provider address matches an
+// inbound request's source exactly (IP and port). Matching less strictly
+// would misidentify local callers as the provider whenever both sit on the
+// same IP — as in tests and single-box deployments; a NAT'd provider whose
+// source port differs from the configured one must therefore be configured
+// with its real source port (GOBELISK-20).
+func (s *Server) trunkByAddr(addr *net.UDPAddr) *trunkState {
+	if addr == nil {
+		return nil
+	}
+	s.trunkMu.Lock()
+	defer s.trunkMu.Unlock()
+	for _, st := range s.trunkStates {
+		a := st.addr()
+		if a != nil && a.IP.Equal(addr.IP) && a.Port == addr.Port {
+			return st
+		}
+	}
+	return nil
+}
+
 func (st *trunkState) fromDomain() string {
 	if st.cfg.FromDomain != "" {
 		return st.cfg.FromDomain

@@ -1166,7 +1166,7 @@ func (s *Server) handleInvite(m sipMsg) {
 		// its pending transaction instead of routing the call a second time.
 		key := pendingKey(callID, "caller", cseqNumber(req), "INVITE")
 		if tx := s.lookupPendingKey(key); tx != nil {
-			if tx.lastResp != nil {
+			if tx.relayable(tx.lastResp) {
 				m.respond(s.relayedResponse(tx.lastResp, tx.orig))
 			} else {
 				m.respond(buildResponse(req, 100, "Trying", nil, ""))
@@ -1197,10 +1197,17 @@ func (s *Server) handleInvite(m sipMsg) {
 		dialed = route
 	}
 
+	// Inbound routes (GOBELISK-20): calls arriving on a trunk are routed
+	// by DID instead of the dialed number itself.
+	if dest, ok := s.inboundDestination(m, dialed); ok {
+		dialed = dest
+	}
+
 	fromHeader := getHeader(req, "From")
 	overall := time.After(60 * time.Second)
 	hops := 0
 
+routing:
 	for {
 		// Route through dialplan + DND + call forwarding; resolveCallee
 		// sends the rejection responses itself (GOBELISK-14 / GOBELISK-15).
@@ -1219,8 +1226,25 @@ func (s *Server) handleInvite(m sipMsg) {
 			return
 		}
 
+		// Address and Request-URI: a local leg rings its registration, an
+		// outbound leg dials the selected trunk (GOBELISK-21).
+		addr, reqURI := (*net.UDPAddr)(nil), ""
+		if res.trunk != nil {
+			addr = res.trunk.addr()
+			reqURI = res.trunk.callURI(res.dialNumber)
+		} else {
+			addr = res.reg.Addr
+			reqURI = fmt.Sprintf("sip:%s@%s", res.calleeExt, res.reg.Addr.String())
+		}
+
 		// 100 Trying (one per attempt, like a proxy forking serially)
 		m.respond(buildResponse(req, 100, "Trying", nil, ""))
+		if addr == nil {
+			s.log.Warn().Str("callee", res.calleeExt).Msg("cannot resolve outbound target")
+			m.respond(buildResponse(req, 503, "Service Unavailable", nil, ""))
+			s.removeCall(callID)
+			return
+		}
 
 		// The first attempt creates the call; a no-answer forward retargets
 		// the existing record so the caller's dialog stays intact.
@@ -1230,7 +1254,7 @@ func (s *Server) handleInvite(m sipMsg) {
 				CallID:        callID,
 				CallerAddr:    callerAddr,
 				CalleeExt:     res.calleeExt,
-				CalleeAddr:    res.reg.Addr,
+				CalleeAddr:    addr,
 				CallerExt:     userFromURI(fromHeader),
 				CallerTag:     tagOf(fromHeader),
 				CallerContact: getHeader(req, "Contact"),
@@ -1240,15 +1264,10 @@ func (s *Server) handleInvite(m sipMsg) {
 			s.callMu.Unlock()
 		} else {
 			call.CalleeExt = res.calleeExt
-			call.CalleeAddr = res.reg.Addr
+			call.CalleeAddr = addr
 		}
 
-		branch := newBranch()
-		serverVia := fmt.Sprintf("SIP/2.0/UDP %s:%d;branch=%s", s.host, s.port, branch)
-
-		reqURI := fmt.Sprintf("sip:%s@%s", res.calleeExt, res.reg.Addr.String())
 		extraHeaders := map[string]string{
-			"Via":     serverVia,
 			"Contact": s.serverContact(),
 		}
 		// RFC 3891: Replaces may arrive as a URI parameter; convert it into a
@@ -1261,23 +1280,36 @@ func (s *Server) handleInvite(m sipMsg) {
 			extraHeaders["Alert-Info"] = "<urn:alert:service:call-waiting>"
 		}
 
-		inviteMsg := buildRequest("INVITE", reqURI, req, extraHeaders, req.Body)
-
-		// Register the transaction before sending so the callee's responses are
-		// relayed back to the caller with the right Via path (GOBELISK-10).
+		// Register the transaction before sending so the callee's responses
+		// are relayed back to the caller with the right Via path (GOBELISK-10).
 		notify := make(chan *sip.RawMessage, 64)
-		s.registerPending(branch, &pendingTx{
-			key:     pendingKey(callID, "caller", cseqNumber(req), "INVITE"),
-			call:    call,
-			leg:     "caller",
-			orig:    req,
-			respond: m.respond,
-			notify:  notify,
-		})
-
-		s.log.Info().Str("callID", callID).Str("callee", res.calleeExt).Msg("forwarding INVITE")
-		s.log.Debug().Msg(inviteMsg)
-		s.sendRaw(res.reg.Addr, inviteMsg)
+		key := pendingKey(callID, "caller", cseqNumber(req), "INVITE")
+		branch := ""
+		sendInvite := func(auth string) {
+			branch = newBranch()
+			hdrs := make(map[string]string, len(extraHeaders)+2)
+			for k, v := range extraHeaders {
+				hdrs[k] = v
+			}
+			hdrs["Via"] = fmt.Sprintf("SIP/2.0/UDP %s:%d;branch=%s", s.host, s.port, branch)
+			if auth != "" {
+				hdrs["Authorization"] = auth
+			}
+			inviteMsg := buildRequest("INVITE", reqURI, req, hdrs, req.Body)
+			s.registerPending(branch, &pendingTx{
+				key:             key,
+				call:            call,
+				leg:             "caller",
+				orig:            req,
+				respond:         m.respond,
+				notify:          notify,
+				absorbChallenge: res.trunk != nil,
+			})
+			s.log.Info().Str("callID", callID).Str("callee", res.calleeExt).Msg("forwarding INVITE")
+			s.log.Debug().Msg(inviteMsg)
+			s.sendRaw(addr, inviteMsg)
+		}
+		sendInvite("")
 
 		// Wait for the callee: an answer ends the setup, a configured
 		// no-answer timeout cancels this leg and rings the forward target.
@@ -1286,51 +1318,82 @@ func (s *Server) handleInvite(m sipMsg) {
 			noAnswer = time.After(d)
 		}
 		legTimer := time.After(legTimeout)
+		authAttempts := 0
 
-		select {
-		case resp := <-notify:
-			if resp.StatusCode >= 200 {
-				// A successful pickup of a parked call releases the
-				// parked dialog (GOBELISK-12).
-				if resp.StatusCode < 300 && res.parked && !res.parkEmpty {
-					s.releasePark(res.parkSlot, "picked up")
-				}
-				if resp.StatusCode >= 300 {
-					s.removeCall(callID)
-				}
-				return
-			}
-		case <-noAnswer:
-			// An answer racing the timer wins (GOBELISK-15).
+		for {
 			select {
 			case resp := <-notify:
+				// An outbound trunk challenged us: retry with digest
+				// credentials without bothering the caller (GOBELISK-21).
+				if res.trunk != nil && (resp.StatusCode == 401 || resp.StatusCode == 407) {
+					if authAttempts == 0 {
+						challenge := getHeader(resp, "WWW-Authenticate")
+						if challenge == "" {
+							challenge = getHeader(resp, "Proxy-Authenticate")
+						}
+						auth, err := digestAuth(challenge, "INVITE", reqURI,
+							res.trunk.user(), res.trunk.cfg.Password)
+						if err == nil {
+							authAttempts++
+							s.removePending(branch)
+							sendInvite(auth)
+							continue
+						}
+					}
+					// Second challenge (or unparsable): hand the real
+					// status to the caller — it was absorbed until now.
+					m.respond(s.relayedResponse(resp, req))
+					s.removeCall(callID)
+					s.removePending(branch)
+					return
+				}
 				if resp.StatusCode >= 200 {
+					// A successful pickup of a parked call releases the
+					// parked dialog (GOBELISK-12).
+					if resp.StatusCode < 300 && res.parked && !res.parkEmpty {
+						s.releasePark(res.parkSlot, "picked up")
+					}
 					if resp.StatusCode >= 300 {
 						s.removeCall(callID)
 					}
 					return
 				}
-			default:
+				// 180/183: keep waiting — a provisional response must
+				// never trigger a duplicate INVITE.
+				continue
+			case <-noAnswer:
+				// An answer racing the timer wins (GOBELISK-15).
+				select {
+				case resp := <-notify:
+					if resp.StatusCode >= 200 {
+						if resp.StatusCode >= 300 {
+							s.removeCall(callID)
+						}
+						return
+					}
+				default:
+				}
+				s.log.Info().
+					Str("callID", callID).
+					Str("callee", res.calleeExt).
+					Str("to", res.fwd.NoAnswer).
+					Msg("no answer, forwarding")
+				s.cancelForwardedInvite(reqURI, addr, branch, req)
+				s.removePending(branch)
+				dialed = res.fwd.NoAnswer
+				hops++
+				continue routing
+			case <-legTimer:
+				m.respond(buildResponse(req, 408, "Request Timeout", nil, ""))
+				s.removeCall(callID)
+				s.removePending(branch)
+				return
+			case <-overall:
+				m.respond(buildResponse(req, 408, "Request Timeout", nil, ""))
+				s.removeCall(callID)
+				s.removePending(branch)
+				return
 			}
-			s.log.Info().
-				Str("callID", callID).
-				Str("callee", res.calleeExt).
-				Str("to", res.fwd.NoAnswer).
-				Msg("no answer, forwarding")
-			s.cancelForwardedInvite(reqURI, res.reg.Addr, branch, req)
-			s.removePending(branch)
-			dialed = res.fwd.NoAnswer
-			hops++
-		case <-legTimer:
-			m.respond(buildResponse(req, 408, "Request Timeout", nil, ""))
-			s.removeCall(callID)
-			s.removePending(branch)
-			return
-		case <-overall:
-			m.respond(buildResponse(req, 408, "Request Timeout", nil, ""))
-			s.removeCall(callID)
-			s.removePending(branch)
-			return
 		}
 	}
 }

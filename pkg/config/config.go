@@ -249,7 +249,56 @@ type Config struct {
 	// config file is the durable store; management-RPC edits apply until
 	// the next reload.
 	Trunks []TrunkConfig `yaml:"trunks"`
+	// OutboundRoutes send matching dialed numbers to a trunk
+	// (GOBELISK-21 / GOBELISK-22).
+	OutboundRoutes []OutboundRoute `yaml:"outbound_routes"`
+	// InboundRoutes map DIDs arriving on a trunk to a destination
+	// (GOBELISK-20).
+	InboundRoutes []InboundRoute `yaml:"inbound_routes"`
 }
+
+// MatchPattern matches a dialed number against a route pattern: a trailing
+// "*" makes it a prefix match ("0*" matches 0630...), otherwise the pattern
+// must match exactly; "*" alone matches everything.
+func MatchPattern(pattern, value string) bool {
+	if strings.HasSuffix(pattern, "*") {
+		return strings.HasPrefix(value, strings.TrimSuffix(pattern, "*"))
+	}
+	return pattern == value
+}
+
+// OutboundRoute sends matching dialed numbers to a trunk (GOBELISK-21).
+type OutboundRoute struct {
+	Name string `yaml:"name"`
+	// Pattern: exact digits or a trailing-* prefix pattern.
+	Pattern string `yaml:"pattern"`
+	// Trunk is the trunk name to dial out on.
+	Trunk string `yaml:"trunk"`
+	// PrefixStrip removes leading digits before dialing (e.g. strip the
+	// "0" trunk access code).
+	PrefixStrip int `yaml:"prefix_strip"`
+	// Cost ranks routes for least-cost routing: lower wins, ties keep the
+	// config order (GOBELISK-22).
+	Cost int `yaml:"cost"`
+}
+
+// Match reports whether dialed goes out on this route.
+func (r OutboundRoute) Match(dialed string) bool { return MatchPattern(r.Pattern, dialed) }
+
+// InboundRoute maps a DID arriving on a trunk to a destination
+// (GOBELISK-20).
+type InboundRoute struct {
+	Name string `yaml:"name"`
+	// DID: exact digits or a trailing-* prefix pattern.
+	DID string `yaml:"did"`
+	// Trunk restricts the route to one trunk; empty matches any trunk.
+	Trunk string `yaml:"trunk"`
+	// Destination is a dialable target: extension, ring group, IVR menu...
+	Destination string `yaml:"destination"`
+}
+
+// Match reports whether this DID belongs to the route.
+func (r InboundRoute) Match(did string) bool { return MatchPattern(r.DID, did) }
 
 // RingTimeout returns the configured ring timeout, falling back to the default.
 func (c *Config) RingTimeout() time.Duration {
